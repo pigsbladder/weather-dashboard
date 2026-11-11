@@ -49,7 +49,7 @@ export async function handleWeather(request, env, ctx) {
     // If we just made a live call above, wait a beat so we don't trip the
     // 1 request/second limit.
     const histUrl = `${AMBIENT}/devices/${encodeURIComponent(station.macAddress)}?${auth}&limit=288`;
-    let history = await cachedFetch(cache, `${origin}/__cache/history`, histUrl, HISTORY_TTL, waitUntil, devices.fresh ? 1100 : 0);
+    const history = await cachedFetch(cache, `${origin}/__cache/history`, histUrl, HISTORY_TTL, waitUntil, devices.fresh ? 1100 : 0);
 
     const rows = history.ok && Array.isArray(history.data)
       ? history.data
@@ -77,23 +77,72 @@ export async function handleWeather(request, env, ctx) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// Look in the edge cache first; on a miss, fetch from Ambient and store it.
+// Two cache layers so we rarely touch Ambient:
+//   1. memory   - per Worker instance; works on workers.dev too
+//   2. caches.default - shared edge cache (custom domains only)
+// Entries are kept for a day but count as "fresh" only for `ttl` seconds.
+// If Ambient fails or rate-limits us, we serve the last good copy instead of
+// an error. Concurrent requests share one in-flight upstream call.
+const memo = new Map(); // key -> { ts, data }
+const inflight = new Map(); // key -> Promise
+const KEEP_STALE = 86400; // seconds
+
 // Returns { ok, status, data, fresh } where fresh = true means we hit Ambient.
 async function cachedFetch(cache, cacheKey, upstreamUrl, ttl, waitUntil, delayMs = 0) {
-  const hit = await cache.match(cacheKey);
-  if (hit) return { ok: true, status: 200, data: await hit.json(), fresh: false };
+  const now = Date.now();
+  const isFresh = (e) => e && now - e.ts < ttl * 1000;
 
-  if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+  // 1. memory
+  let entry = memo.get(cacheKey);
+  if (isFresh(entry)) return { ok: true, status: 200, data: entry.data, fresh: false };
 
-  const res = await fetch(upstreamUrl, { headers: { accept: 'application/json' } });
-  if (!res.ok) return { ok: false, status: res.status, data: null, fresh: true };
+  // 2. edge cache
+  if (!entry) {
+    const hit = await cache.match(cacheKey).catch(() => null);
+    if (hit) {
+      entry = await hit.json();
+      memo.set(cacheKey, entry);
+      if (isFresh(entry)) return { ok: true, status: 200, data: entry.data, fresh: false };
+    }
+  }
 
-  const data = await res.json();
-  const stored = new Response(JSON.stringify(data), {
-    headers: { 'content-type': 'application/json', 'cache-control': `max-age=${ttl}` },
-  });
-  waitUntil(cache.put(cacheKey, stored));
-  return { ok: true, status: 200, data, fresh: true };
+  // 3. Ambient (deduplicated)
+  if (!inflight.has(cacheKey)) {
+    inflight.set(cacheKey, upstream(upstreamUrl, delayMs).finally(() => inflight.delete(cacheKey)));
+  }
+  const res = await inflight.get(cacheKey);
+
+  if (res.ok) {
+    const fresh = { ts: Date.now(), data: res.data };
+    memo.set(cacheKey, fresh);
+    waitUntil(
+      cache
+        .put(cacheKey, new Response(JSON.stringify(fresh), {
+          headers: { 'content-type': 'application/json', 'cache-control': `max-age=${KEEP_STALE}` },
+        }))
+        .catch(() => {}),
+    );
+    return { ok: true, status: 200, data: res.data, fresh: true };
+  }
+
+  // Ambient failed: fall back to the last good copy if we have one.
+  if (entry) return { ok: true, status: 200, data: entry.data, fresh: true, stale: true };
+  return { ok: false, status: res.status, data: null, fresh: true };
+}
+
+// One call to Ambient, with a single retry if it rate-limits us.
+async function upstream(url, delayMs) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (delayMs || attempt) await new Promise((r) => setTimeout(r, attempt ? 1500 : delayMs));
+    try {
+      const r = await fetch(url, { headers: { accept: 'application/json' } });
+      if (r.ok) return { ok: true, status: 200, data: await r.json() };
+      if (r.status !== 429) return { ok: false, status: r.status };
+      if (attempt) return { ok: false, status: 429 };
+    } catch {
+      if (attempt) return { ok: false, status: 502 };
+    }
+  }
 }
 
 function upstreamError(status) {
