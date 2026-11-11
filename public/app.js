@@ -726,7 +726,18 @@ function initMap() {
   radar.map = L.map('map', { zoomControl: true, attributionControl: false, scrollWheelZoom: false, maxZoom: 12, minZoom: 4 })
     .setView([co.lat, co.lon], 8);
   radar.map.zoomControl.setPosition('topright');
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 12 }).addTo(radar.map);
+  // Base map: Stadia "Alidade Smooth Dark" (free, authorised by domain in the
+  // Stadia dashboard, so no key in the code). If its tiles are refused, e.g.
+  // before the domain is registered, fall back to OpenStreetMap tiles
+  // darkened with a CSS filter.
+  const stadia = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', { maxZoom: 12 }).addTo(radar.map);
+  let failures = 0;
+  stadia.on('tileerror', () => {
+    if (++failures !== 3) return;
+    radar.map.removeLayer(stadia);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12, className: 'osm-dark' }).addTo(radar.map);
+    $('mapCredit').innerHTML = 'Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.';
+  });
   L.marker([co.lat, co.lon], { icon: L.divIcon({ className: '', html: '<div class="station-pin"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), keyboard: false })
     .bindTooltip(esc(state.data.name), { permanent: true, direction: 'right', className: 'station-label', offset: [12, 0] })
     .addTo(radar.map);
