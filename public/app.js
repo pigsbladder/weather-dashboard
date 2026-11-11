@@ -208,7 +208,7 @@ function renderHero() {
   const word = rainWord(c.hourlyrainin);
   $('rainLabel').textContent = word ? `Rain, ${word}` : 'Not raining';
   $('rainRate').textContent = fmt(C.rain(c.hourlyrainin ?? 0), u.rainDp);
-  $('rainRateUnit').textContent = ` ${u.rate}`;
+  $('rainRateUnit').textContent = u.rate;
 
   $('summary').textContent = summary(c, h);
 
@@ -730,20 +730,34 @@ function initMap() {
   // Stadia dashboard, so no key in the code). If its tiles are refused, e.g.
   // before the domain is registered, fall back to OpenStreetMap tiles
   // darkened with a CSS filter.
-  const stadia = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', { maxZoom: 12 }).addTo(radar.map);
-  let failures = 0;
-  stadia.on('tileerror', () => {
-    if (++failures !== 3) return;
-    radar.map.removeLayer(stadia);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12, className: 'osm-dark' }).addTo(radar.map);
-    $('mapCredit').innerHTML = 'Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.';
-  });
+  // Stadia answers an unauthorised request with a 401 *image*, which Leaflet
+  // treats as a normal tile, so test one tile first and pick the layer.
+  addBaseMap(co);
   L.marker([co.lat, co.lon], { icon: L.divIcon({ className: '', html: '<div class="station-pin"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), keyboard: false })
     .bindTooltip(esc(state.data.name), { permanent: true, direction: 'right', className: 'station-label', offset: [12, 0] })
     .addTo(radar.map);
 
   loadRadarFrames();
   setInterval(loadRadarFrames, 10 * 60e3);
+}
+
+async function addBaseMap(co) {
+  const z = 8;
+  const x = Math.floor(((co.lon + 180) / 360) * 2 ** z);
+  const latR = (co.lat * Math.PI) / 180;
+  const y = Math.floor(((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2) * 2 ** z);
+  let stadiaOk = false;
+  try {
+    const res = await fetch(`https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/${z}/${x}/${y}.png`, { mode: 'cors' });
+    stadiaOk = res.ok;
+  } catch { /* network or CORS problem: use the fallback */ }
+
+  if (stadiaOk) {
+    L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', { maxZoom: 12 }).addTo(radar.map);
+  } else {
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12, className: 'osm-dark' }).addTo(radar.map);
+    $('mapCredit').innerHTML = 'Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.';
+  }
 }
 
 async function loadRadarFrames() {
