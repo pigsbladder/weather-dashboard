@@ -716,7 +716,7 @@ function renderForecast() {
 // (RainViewer's free tier: radar zoom tops out at 7, so we stretch it.)
 // ---------------------------------------------------------------------------
 
-const radar = { map: null, layers: [], frames: [], idx: 0, timer: null };
+const radar = { map: null, layers: [], frames: [], idx: 0, timer: null, clouds: null, visible: true };
 
 function initMap() {
   if (radar.map || !window.L) return;
@@ -733,12 +733,153 @@ function initMap() {
   // Stadia answers an unauthorised request with a 401 *image*, which Leaflet
   // treats as a normal tile, so test one tile first and pick the layer.
   addBaseMap(co);
+
+  // Find the newest frame first, then draw, so every tile uses the same one.
+  radar.clouds = makeCloudLayer();
+  refreshClouds().finally(() => {
+    if (document.querySelector('[data-layer="clouds"]').getAttribute('aria-pressed') === 'true') radar.clouds.addTo(radar.map);
+  });
+  setInterval(refreshClouds, 10 * 60e3);
   L.marker([co.lat, co.lon], { icon: L.divIcon({ className: '', html: '<div class="station-pin"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), keyboard: false })
     .bindTooltip(esc(state.data.name), { permanent: true, direction: 'right', className: 'station-label', offset: [12, 0] })
     .addTo(radar.map);
 
   loadRadarFrames();
   setInterval(loadRadarFrames, 10 * 60e3);
+}
+
+// ---------------------------------------------------------------------------
+// Satellite clouds: NASA GIBS, GOES-West band 13 ("clean" infrared), latest
+// image (~10 minute cadence). NASA serves it colour-enhanced; we turn each
+// colour back into a cloud-top temperature with NASA's own colour table and
+// redraw it as white cloud: warmer than ~2°C (ground, sea) is clear, colder
+// tops (thicker, higher cloud) get more opaque. Works where radar can't reach.
+// ---------------------------------------------------------------------------
+
+// [rgb as int, °C] pairs from gibs.earthdata.nasa.gov/colormaps/v1.3/Clean_Longwave_Infrared_Window_Band.xml
+const IR_LUT_FLAT = [16777215,-91.6,8323199,-90.6,9178503,-89.6,10033550,-88.6,10823318,-87.6,11678621,-86.6,12533925,-85.6,13388973,-84.6,14244276,-83.6,15034044,-82.6,15889091,-81.6,16744395,-80.6,15132390,-79.6,13421772,-78.6,11645361,-77.6,10197915,-76.6,8487297,-75.6,6710886,-74.6,5000268,-73.6,3552822,-72.6,1776411,-71.6,328965,-70.6,1703936,-69.6,3342336,-68.6,5046272,-67.6,6684672,-66.6,8388608,-65.6,10027008,-64.6,11730944,-63.6,13369344,-62.6,15073280,-61.6,16711680,-60.6,16718336,-59.6,16724736,-58.6,16731392,-57.6,16737792,-56.6,16744448,-55.6,16750848,-54.6,16757504,-53.6,16763904,-52.6,16770560,-51.6,16776960,-50.6,15138560,-49.6,13434624,-48.6,11796224,-47.6,10092288,-46.6,8453888,-45.6,6749952,-44.6,5111552,-43.6,3407616,-42.6,1769216,-41.6,65280,-40.6,59914,-39.6,54291,-38.6,48925,-37.6,43558,-36.6,38192,-35.6,32826,-34.6,27203,-33.6,21837,-32.6,16470,-31.6,10848,-30.9,5481,-30.4,115,-29.9,125,-29.4,3450,-28.9,6785,-28.4,9864,-27.9,13199,-27.4,16534,-26.9,19613,-26.4,22948,-25.9,26283,-25.4,29618,-24.9,32953,-24.4,36032,-23.9,39367,-23.4,42702,-22.9,45781,-22.4,49116,-21.9,52451,-21.4,55786,-20.9,59121,-20.4,62200,-19.9,65535,-19.4,12961221,-18.9,12895428,-18.4,12763842,-17.9,12698049,-17.4,12632256,-16.9,12566463,-16.4,12434877,-15.9,12369084,-15.3,12303291,-14.8,12171705,-14.3,12105912,-13.8,12040119,-13.3,11908533,-12.8,11842740,-12.3,11776947,-11.8,11711154,-11.3,11579568,-10.8,11513775,-10.3,11447982,-9.8,11316396,-9.3,11250603,-8.8,11184810,-8.3,11119017,-7.8,10987431,-7.3,10921638,-6.8,10855845,-6.3,10724259,-5.8,10658466,-5.3,10592673,-4.8,10461087,-4.3,10395294,-3.8,10329501,-3.4,10263708,-2.9,10132122,-2.4,10066329,-1.9,10000536,-1.4,9868950,-0.9,9803157,-0.3,9737364,0.2,9671571,0.7,9539985,1.1,9474192,1.6,9408399,2.1,9276813,2.6,9211020,3.1,9145227,3.6,9079434,4.2,8947848,4.7,8882055,5.2,8816262,5.7,8684676,6.2,8618883,6.7,8553090,7.2,8421504,7.7,8355711,8.2,8289918,8.7,8224125,9.2,8092539,9.7,8026746,10.2,7960953,10.7,7829367,11.2,7763574,11.7,7697781,12.2,7631988,12.7,7500402,13.2,7434609,13.7,7368816,14.2,7237230,14.7,7171437,15.2,7105644,15.7,6974058,16.1,6908265,16.6,6842472,17.1,6776679,17.6,6645093,18.1,6579300,18.6,6513507,19.1,6381921,19.6,6316128,20.1,6250335,20.6,6184542,21.1,6052956,21.6,5987163,22.1,5921370,22.6,5789784,23.1,5723991,23.6,5658198,24.1,5526612,24.6,5460819,25.1,5395026,25.6,5329233,26.1,5197647,26.6,5131854,27.1,5066061,27.6,4934475,28.1,4868682,28.6,4802889,29.1,4737096,29.6,4605510,30.1,4539717,30.6,4473924,31.1,4342338,31.6,4276545,32.1,4210752,32.6,4079166,33.1,4013373,33.6,3947580,34.1,3881787,34.6,3750201,35.1,3684408,35.6,3618615,36.1,3487029,36.6,3421236,37.1,3355443,37.6,3289650,38.1,3158064,38.6,3092271,39.1,3026478,39.6,2894892,40.1,2829099,40.6,2763306,41.1,2697513,41.6,2565927,42.1,2500134,42.6,2434341,43.1,2302755,43.6,2236962,44.1,2171169,44.6,2039583,45.1,1973790,45.6,1907997,46.1,1842204,46.6,1710618,47.1,1644825,47.6,1579032,48.1,1447446,48.6,1381653,49.1,1315860,49.6,1250067,50.1,1118481,50.6,1052688,51.1,986895,51.6,855309,52.1,789516,52.6,723723,53.1,592137,53.6,526344,54.1,460551,54.6,394758,55.1,263172,55.6,197379,56.1,131586,56.6,65793,57.4];
+const IR_LUT = new Map();
+for (let i = 0; i < IR_LUT_FLAT.length; i += 2) IR_LUT.set(IR_LUT_FLAT[i], IR_LUT_FLAT[i + 1]);
+const IR_ENTRIES = [...IR_LUT].map(([k, t]) => [(k >> 16) & 255, (k >> 8) & 255, k & 255, t]);
+const irCache = new Map();
+
+// Exact colour match, else nearest table colour (tiles get resampled), cached.
+function irTemp(r, g, b) {
+  const k = (r << 16) | (g << 8) | b;
+  let t = IR_LUT.get(k) ?? irCache.get(k);
+  if (t !== undefined) return t;
+  let best = Infinity;
+  for (const e of IR_ENTRIES) {
+    const d = (e[0] - r) ** 2 + (e[1] - g) ** 2 + (e[2] - b) ** 2;
+    if (d < best) { best = d; t = e[3]; }
+  }
+  irCache.set(k, t);
+  return t;
+}
+function cloudAlpha(t) {
+  if (t >= 2) return 0;
+  const f = Math.min(1, (2 - t) / 62); // 2°C (clear) → -60°C (deep storm tops)
+  return Math.round((0.06 + 0.56 * f ** 0.8) * 255); // max ~62% so the map stays readable
+}
+
+function cloudUrl(minx, miny, maxx, maxy, size, time) {
+  return 'https://gibs.earthdata.nasa.gov/wms/epsg3857/all/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0' +
+    '&LAYERS=GOES-West_ABI_Band13_Clean_Infrared&STYLES=&FORMAT=image/png&TRANSPARENT=true&CRS=EPSG:3857' +
+    `&BBOX=${minx},${miny},${maxx},${maxy}&WIDTH=${size}&HEIGHT=${size}` + (time ? `&TIME=${time}` : '');
+}
+
+function makeCloudLayer() {
+  const R = 20037508.342789244; // web-mercator half-width in metres
+  const Layer = L.GridLayer.extend({
+    createTile(coords, done) {
+      const size = this.getTileSize();
+      const canvas = document.createElement('canvas');
+      canvas.width = size.x; canvas.height = size.y;
+      // Satellite pixels are ~2-4 km here, so fetch a small image, recolour, then
+      // scale up with smoothing: soft cloud edges instead of blocks.
+      const small = document.createElement('canvas');
+      small.width = 48; small.height = 48; // ~ the satellite's real resolution at these latitudes
+      const span = (2 * R) / 2 ** coords.z;
+      const minx = -R + coords.x * span, maxy = R - coords.y * span;
+      const sctx = small.getContext('2d', { willReadFrequently: true });
+
+      // Try the chosen frame; if this patch isn't filled in yet, step back
+      // up to three older frames.
+      const attempt = (n) => {
+        const time = this.options.time ? new Date(Date.parse(this.options.time) - n * 6e5).toISOString().replace('.000Z', 'Z') : null;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          sctx.clearRect(0, 0, small.width, small.height);
+          sctx.drawImage(img, 0, 0);
+          const data = sctx.getImageData(0, 0, small.width, small.height);
+          const p = data.data;
+          let filled = 0;
+          for (let i = 3; i < p.length; i += 4) if (p[i] > 0) filled++;
+          if (filled === 0 && time && n < 3) return attempt(n + 1);
+          for (let i = 0; i < p.length; i += 4) {
+            const a = p[i + 3] === 0 ? 0 : cloudAlpha(irTemp(p[i], p[i + 1], p[i + 2]));
+            p[i] = 236; p[i + 1] = 243; p[i + 2] = 246; p[i + 3] = a;
+          }
+          sctx.putImageData(data, 0, 0);
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(small, 0, 0, size.x, size.y);
+          done(null, canvas);
+        };
+        img.onerror = () => done(null, canvas); // leave the tile empty
+        img.src = cloudUrl(minx, maxy - span, minx + span, maxy, small.width, time) + (time ? '' : `&_=${this.options.stamp}`);
+      };
+      attempt(0);
+      return canvas;
+    },
+  });
+  return new Layer({ maxNativeZoom: 8, maxZoom: 12, zIndex: 5, stamp: Math.floor(Date.now() / 6e5), time: null });
+}
+
+// Newest frame that covers the whole visible map (usually 40-70 min behind).
+// NASA fills frames in piece by piece, and missing areas come back fully
+// transparent, so check pixels, not the HTTP status.
+async function latestCloudFrame() {
+  const base = Math.floor(Date.now() / 6e5) * 6e5;
+  const b = radar.map.getBounds();
+  const sw = L.CRS.EPSG3857.project(b.getSouthWest()), ne = L.CRS.EPSG3857.project(b.getNorthEast());
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  for (let k = 2; k <= 18; k++) {
+    const iso = new Date(base - k * 6e5).toISOString().replace('.000Z', 'Z');
+    try {
+      const img = new Image(); img.crossOrigin = 'anonymous';
+      await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = cloudUrl(sw.x, sw.y, ne.x, ne.y, 32, iso); });
+      ctx.clearRect(0, 0, 32, 32); ctx.drawImage(img, 0, 0);
+      const px = ctx.getImageData(0, 0, 32, 32).data;
+      let filled = 0;
+      for (let i = 3; i < px.length; i += 4) if (px[i] > 0) filled++;
+      if (filled >= 0.97 * 1024) return iso; // this frame covers the whole view
+    } catch { /* try the next older frame */ }
+  }
+  return null;
+}
+
+async function refreshClouds() {
+  if (!radar.clouds) return;
+  const t = await latestCloudFrame();
+  if (t && t === radar.clouds.options.time) return; // nothing new
+  radar.clouds.options.time = t;
+  radar.clouds.options.stamp = Math.floor(Date.now() / 6e5);
+  radar.clouds.redraw();
+  $('cloudTime').textContent = t ? `, ${clock(Date.parse(t))}` : '';
+}
+
+function setLayer(which, on) {
+  document.querySelector(`[data-layer="${which}"]`).setAttribute('aria-pressed', String(on));
+  if (which === 'clouds' && radar.clouds) {
+    if (on) radar.clouds.addTo(radar.map); else radar.map.removeLayer(radar.clouds);
+  }
+  if (which === 'radar') { radar.visible = on; showFrame(radar.idx); }
+  $('legendRadar').hidden = !radar.visible;
+  $('legendClouds').hidden = !radar.map?.hasLayer(radar.clouds);
 }
 
 async function addBaseMap(co) {
@@ -784,7 +925,7 @@ async function loadRadarFrames() {
 
 function showFrame(i) {
   radar.idx = i;
-  radar.layers.forEach((l, k) => l.setOpacity(k === i ? 0.75 : 0));
+  radar.layers.forEach((l, k) => l.setOpacity(radar.visible && k === i ? 0.8 : 0));
   $('radarFrame').value = String(i);
   const f = radar.frames[i];
   if (f) $('radarNow').textContent = `${i === radar.frames.length - 1 ? 'Latest, ' : ''}${clock(f.time * 1000)}`;
@@ -818,6 +959,7 @@ document.querySelectorAll('[data-units]').forEach((b) => b.addEventListener('cli
   renderAll();
 }));
 $('radarPlay').addEventListener('click', togglePlay);
+document.querySelectorAll('[data-layer]').forEach((b) => b.addEventListener('click', () => setLayer(b.dataset.layer, b.getAttribute('aria-pressed') !== 'true')));
 $('radarFrame').addEventListener('input', (e) => {
   if (radar.timer) togglePlay();
   showFrame(Number(e.target.value));

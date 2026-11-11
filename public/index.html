@@ -63,7 +63,11 @@
     </div>
 
     <figure class="panel radar">
-      <div id="map" class="map" role="region" aria-label="Radar map"></div>
+      <div id="map" class="map" role="region" aria-label="Radar and satellite map"></div>
+      <div class="pill-group map-layers" role="group" aria-label="Map layers">
+        <button type="button" data-layer="radar" aria-pressed="true">Radar</button>
+        <button type="button" data-layer="clouds" aria-pressed="true">Clouds</button>
+      </div>
       <figcaption class="radar-ui">
         <div class="radar-player">
           <button type="button" class="play" id="radarPlay" aria-label="Play the last hour of radar">
@@ -75,12 +79,18 @@
           </div>
         </div>
         <div class="radar-foot">
-          <div class="legend">
-            <span>Light</span>
-            <span class="legend-bar" aria-hidden="true"></span>
-            <span>Heavy</span>
+          <div class="legend-row">
+            <div class="legend" id="legendRadar">
+              <span>Light</span>
+              <span class="legend-bar" aria-hidden="true"></span>
+              <span>Heavy rain</span>
+            </div>
+            <div class="legend" id="legendClouds">
+              <span class="cloud-bar" aria-hidden="true"></span>
+              <span>Clouds, thin to thick<span id="cloudTime" class="num"></span></span>
+            </div>
           </div>
-          <span class="attrib">Radar <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a></span>
+          <span class="attrib">Radar <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>. Clouds <a href="https://earthdata.nasa.gov/gibs" target="_blank" rel="noopener">NASA</a></span>
         </div>
       </figcaption>
     </figure>
@@ -150,7 +160,7 @@
   </section>
 
   <footer class="foot muted small">
-    Station data from Ambient Weather. Tides from NOAA. Forecast from the National Weather Service.
+    Station data from Ambient Weather. Tides from NOAA. Forecast from the National Weather Service. Satellite clouds from NOAA GOES-West via NASA GIBS.
     <span id="mapCredit">Map © <a href="https://stadiamaps.com/" target="_blank" rel="noopener">Stadia Maps</a>, © <a href="https://openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>, © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.</span>
   </footer>
 </div>

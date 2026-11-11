@@ -167,6 +167,9 @@ h2 { font-size: 18px; font-weight: 700; }
 }
 /* Approximates RainViewer's "Universal Blue" scale */
 .legend-bar { width: 110px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, #88DDEE, #0099CC, #005588, #FFEE00, #FF8800, #FF2200, #C10070); }
+.map-layers { position: absolute; top: 16px; left: 16px; z-index: 500; background: rgba(11, 26, 34, 0.92); }
+.legend-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.cloud-bar { width: 70px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, rgba(236,243,246,0.12), rgba(236,243,246,0.62)); border: 1px solid #2B3C45; }
 .attrib { font-size: 12px; color: var(--muted); background: rgba(11, 26, 34, 0.92); border-radius: 999px; padding: 4px 10px; }
 .radar-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); padding: 24px; text-align: center; }
 
