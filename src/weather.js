@@ -19,7 +19,7 @@ const CURRENT_TTL = 60;   // seconds
 const HISTORY_TTL = 300;  // seconds
 
 // Only the fields the chart needs, to keep the payload small.
-const HISTORY_FIELDS = ['dateutc', 'tempf', 'baromrelin', 'windspeedmph', 'windgustmph', 'dailyrainin', 'humidity'];
+const HISTORY_FIELDS = ['dateutc', 'tempf', 'baromrelin', 'windspeedmph', 'windgustmph', 'winddir', 'hourlyrainin', 'dailyrainin', 'humidity', 'solarradiation', 'uv'];
 
 export async function handleWeather(request, env, ctx) {
   const waitUntil = (p) => ctx.waitUntil(p);
@@ -62,8 +62,13 @@ export async function handleWeather(request, env, ctx) {
       {
         name: info.name ?? 'Weather station',
         location: info.coords?.location ?? info.location ?? null,
+        // Used for the radar map, forecast and sun/moon times
+        coords: info.coords?.coords
+          ? { lat: info.coords.coords.lat, lon: info.coords.coords.lon }
+          : env.LAT && env.LON ? { lat: Number(env.LAT), lon: Number(env.LON) } : null,
         current: station.lastData ?? {},
         history: rows,
+        locked: Boolean(env.SITE_PASSWORD), // shows the Sign out link
         fetchedAt: Date.now(),
       },
       'private, max-age=30',

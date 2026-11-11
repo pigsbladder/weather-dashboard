@@ -4,11 +4,13 @@
 //
 //   1. Password gate   (src/auth.js)    - skipped when SITE_PASSWORD isn't set
 //   2. /api/weather    (src/weather.js) - Ambient Weather proxy
+//      /api/tides, /api/forecast, /api/rain-month (src/extras.js)
 //   3. Everything else -> static files in /public
 // ---------------------------------------------------------------------------
 
 import { gate } from './auth.js';
 import { handleWeather } from './weather.js';
+import { handleTides, handleForecast, handleRainMonth } from './extras.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -16,8 +18,11 @@ export default {
     if (blocked) return blocked;
 
     const { pathname } = new URL(request.url);
-    if (pathname === '/api/weather' && request.method === 'GET') {
-      return handleWeather(request, env, ctx);
+    if (request.method === 'GET') {
+      if (pathname === '/api/weather') return handleWeather(request, env, ctx);
+      if (pathname === '/api/tides') return handleTides(request, env, ctx);
+      if (pathname === '/api/forecast') return handleForecast(request, env, ctx);
+      if (pathname === '/api/rain-month') return handleRainMonth(request, env, ctx);
     }
 
     return env.ASSETS.fetch(request);

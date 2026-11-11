@@ -4,60 +4,153 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0E171C">
   <title>Weather</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+
+  <!-- Fonts: Atkinson Hyperlegible Next, designed for legibility -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@200..800&display=swap">
+
+  <!-- Map (Leaflet) and sun/moon math (SunCalc) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js" defer></script>
+
   <link rel="stylesheet" href="/styles.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
+<div class="page">
+
+  <!-- ===== Header ===== -->
   <header class="top">
-    <div>
+    <div class="top-title">
       <h1 id="station">Weather station</h1>
-      <p class="place" id="place"></p>
+      <span class="muted" id="place"></span>
     </div>
-    <div class="controls">
-      <p class="updated" id="updated" aria-live="polite">Loading…</p>
-      <button type="button" class="link-btn" id="units">Show metric</button>
-      <a class="link-btn" href="/logout">Sign out</a>
+    <div class="top-controls">
+      <span class="muted" id="updated" aria-live="polite">Loading…</span>
+      <div class="pill-group" role="group" aria-label="Units">
+        <button type="button" data-units="us" aria-pressed="true">°F</button>
+        <button type="button" data-units="metric" aria-pressed="false">°C</button>
+      </div>
+      <a class="text-link" href="/logout" id="signout" hidden>Sign out</a>
     </div>
   </header>
 
   <p class="notice" id="notice" role="status" hidden></p>
 
-  <main>
-    <!-- Current conditions: the big number and the wind dial -->
-    <section class="now" aria-label="Current conditions">
-      <div class="now-main">
-        <p class="temp" aria-live="polite"><span id="temp">--</span><span class="temp-unit" id="tempUnit">°F</span></p>
-        <p class="summary" id="summary"></p>
-      </div>
-      <figure class="wind">
-        <svg class="dial" id="dial" viewBox="-110 -110 220 220" role="img" aria-labelledby="windText"></svg>
-        <figcaption id="windText"></figcaption>
-      </figure>
-    </section>
-
-    <!-- 24-hour trace, drawn like a barograph chart -->
-    <section class="trace" aria-labelledby="traceTitle">
-      <div class="trace-head">
-        <h2 id="traceTitle">Last 24 hours</h2>
-        <div class="tabs" role="group" aria-label="Chart">
-          <button type="button" data-series="temp" aria-pressed="true">Temperature</button>
-          <button type="button" data-series="pressure" aria-pressed="false">Pressure</button>
-          <button type="button" data-series="wind" aria-pressed="false">Wind</button>
+  <!-- ===== Current conditions + radar ===== -->
+  <section class="hero" aria-label="Current conditions and radar">
+    <div class="panel now">
+      <div class="now-pair">
+        <div class="now-block">
+          <p class="label-strong">Outside</p>
+          <p class="huge num"><span id="temp">--</span><span class="huge-unit" id="tempUnit">°F</span></p>
+        </div>
+        <div class="now-divider" aria-hidden="true"></div>
+        <div class="now-block">
+          <p class="label-strong" id="rainLabel">Rain</p>
+          <p class="huge num teal"><span id="rainRate">--</span><span class="huge-unit small" id="rainRateUnit"> in/hr</span></p>
         </div>
       </div>
-      <div class="paper" id="paper">
-        <svg id="chart" role="img" aria-labelledby="chartNote"></svg>
-      </div>
-      <p class="chart-note" id="chartNote"></p>
-    </section>
+      <p class="summary" id="summary"></p>
+      <dl class="stats" id="heroStats"></dl>
+    </div>
 
-    <!-- Everything else the station reports -->
-    <section class="readings" id="readings" aria-label="All readings"></section>
-  </main>
+    <figure class="panel radar">
+      <div id="map" class="map" role="region" aria-label="Radar map"></div>
+      <figcaption class="radar-ui">
+        <div class="radar-player">
+          <button type="button" class="play" id="radarPlay" aria-label="Play the last hour of radar">
+            <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><path id="playIcon" d="M1 1l12 7-12 7z" fill="currentColor"/></svg>
+          </button>
+          <div class="radar-scrub">
+            <input type="range" id="radarFrame" min="0" max="0" value="0" aria-label="Radar time">
+            <div class="radar-times num"><span id="radarStart"></span><span id="radarNow" class="strong"></span></div>
+          </div>
+        </div>
+        <div class="radar-foot">
+          <div class="legend">
+            <span>Light</span>
+            <span class="legend-bar" aria-hidden="true"></span>
+            <span>Heavy</span>
+          </div>
+          <span class="attrib">Radar <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a></span>
+        </div>
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ===== Indoors / sun and moon / UV ===== -->
+  <section class="tiles" aria-label="Indoors, sun and moon">
+    <article class="tile" id="tileIndoor"></article>
+    <article class="tile span2" id="tileSunMoon"></article>
+    <article class="tile" id="tileUV"></article>
+  </section>
+
+  <!-- ===== Tides ===== -->
+  <section class="panel tide" aria-labelledby="tideTitle">
+    <div class="tide-side">
+      <div>
+        <h2 id="tideTitle">Tides</h2>
+        <p class="muted">Ketchikan, Tongass Narrows (NOAA)</p>
+      </div>
+      <div>
+        <p class="big num teal"><span id="tideNow">--</span><span class="big-unit" id="tideUnit"> ft</span></p>
+        <p class="tide-state" id="tideState"></p>
+        <p class="muted small" id="tideObserved"></p>
+      </div>
+      <table class="tide-table">
+        <caption id="tideCaption">Today</caption>
+        <tbody id="tideRows"></tbody>
+      </table>
+    </div>
+    <div class="tide-chart">
+      <div class="row-between">
+        <p class="strong">Next 36 hours</p>
+        <div class="key">
+          <span><span class="swatch night" aria-hidden="true"></span>Night</span>
+          <span><span class="swatch sw-now" aria-hidden="true"></span>Now</span>
+        </div>
+      </div>
+      <div class="tide-scroll"><svg id="tideSvg" viewBox="0 0 1000 300" role="img" aria-label="Tide chart"></svg></div>
+    </div>
+  </section>
+
+  <!-- ===== Readings grid ===== -->
+  <section class="tiles" aria-label="Readings">
+    <article class="tile" id="tileRain"></article>
+    <article class="tile" id="tileWind"></article>
+    <article class="tile" id="tilePressure"></article>
+    <article class="tile" id="tileHumidity"></article>
+    <article class="tile span2" id="tileCalendar"></article>
+    <article class="tile" id="tileRose"></article>
+    <article class="tile" id="tileDegree"></article>
+
+    <article class="tile span4">
+      <div class="row-between">
+        <h2>Last 24 hours</h2>
+        <span class="muted small">5-minute readings</span>
+      </div>
+      <div id="multiples"></div>
+    </article>
+
+    <article class="tile span4">
+      <div class="row-between">
+        <h2>Forecast</h2>
+        <span class="muted small" id="forecastNote"></span>
+      </div>
+      <div class="forecast" id="forecast"></div>
+    </article>
+  </section>
+
+  <footer class="foot muted small">
+    Station data from Ambient Weather. Tides from NOAA. Forecast from the National Weather Service.
+    Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>.
+  </footer>
+</div>
 </body>
 </html>
