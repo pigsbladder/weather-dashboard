@@ -21,7 +21,7 @@ Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to G
 | Build command | *(leave empty)* |
 | Build output directory | `public` |
 
-Deploy. The first deploy will show "SITE_PASSWORD is not set". That's expected.
+Deploy.
 
 ## 3. Add the secrets
 
@@ -29,7 +29,7 @@ Project → **Settings → Variables and Secrets** → add these as type **Secre
 
 | Name | Value |
 |---|---|
-| `SITE_PASSWORD` | The password you'll share |
+| `SITE_PASSWORD` *(optional)* | The password you'll share. Leave it out and the site is public |
 | `AW_APP_KEY` | Ambient application key |
 | `AW_API_KEY` | Ambient API key |
 | `AW_MAC` *(optional)* | Station MAC, only if your account has more than one station |

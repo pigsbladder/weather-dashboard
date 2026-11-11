@@ -24,12 +24,8 @@ export async function onRequest(context) {
   const { request, env, next } = context;
   const url = new URL(request.url);
 
-  if (!env.SITE_PASSWORD) {
-    return new Response('SITE_PASSWORD is not set. Add it in Cloudflare Pages > Settings > Variables and Secrets.', {
-      status: 500,
-      headers: { 'content-type': 'text/plain; charset=utf-8' },
-    });
-  }
+  // No password set = site is public. Add SITE_PASSWORD in Cloudflare to lock it.
+  if (!env.SITE_PASSWORD) return next();
 
   if (PUBLIC_PATHS.has(url.pathname)) return next();
 
