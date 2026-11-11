@@ -93,14 +93,13 @@ h2 { font-size: 18px; font-weight: 700; }
 
 .now { padding: 32px 36px; display: flex; flex-direction: column; gap: 26px; }
 .now-pair { display: flex; gap: 32px; align-items: stretch; }
-.now-block { flex: 1 1 0; min-width: 0; }
+.now-block { flex: 1 1 0; min-width: 0; container-type: inline-size; }
 .now-divider { width: 1px; background: var(--line); }
 .label-strong { color: var(--muted); font-weight: 600; margin-bottom: 4px; }
-.huge { font-size: clamp(60px, 6vw, 96px); font-weight: 300; line-height: 0.95; letter-spacing: -0.03em; }
-.huge > span:first-child { white-space: nowrap; }
+.huge { font-size: min(clamp(54px, 5.4vw, 88px), 27cqi); /* 27cqi = never wider than its column */ font-weight: 300; line-height: 0.95; letter-spacing: -0.03em; white-space: nowrap; }
 .huge-unit { font-size: 0.36em; color: var(--muted); letter-spacing: 0; }
-/* Rain rate unit sits on its own line so it never splits (in/ ... hr) */
-.huge-unit.small { display: block; font-size: 20px; line-height: 1.2; margin-top: 10px; white-space: nowrap; }
+/* Rain rate unit: same line as the number, smaller so it fits */
+.huge-unit.small { font-size: 0.26em; margin-left: 0.3em; letter-spacing: 0; }
 .summary { font-size: 20px; line-height: 1.4; max-width: 46ch; text-wrap: pretty; }
 
 .stats {
