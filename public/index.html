@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Weather</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1 id="station">Weather station</h1>
+      <p class="place" id="place"></p>
+    </div>
+    <div class="controls">
+      <p class="updated" id="updated" aria-live="polite">Loading…</p>
+      <button type="button" class="link-btn" id="units">Show metric</button>
+      <a class="link-btn" href="/logout">Sign out</a>
+    </div>
+  </header>
+
+  <p class="notice" id="notice" role="status" hidden></p>
+
+  <main>
+    <!-- Current conditions: the big number and the wind dial -->
+    <section class="now" aria-label="Current conditions">
+      <div class="now-main">
+        <p class="temp" aria-live="polite"><span id="temp">--</span><span class="temp-unit" id="tempUnit">°F</span></p>
+        <p class="summary" id="summary"></p>
+      </div>
+      <figure class="wind">
+        <svg class="dial" id="dial" viewBox="-110 -110 220 220" role="img" aria-labelledby="windText"></svg>
+        <figcaption id="windText"></figcaption>
+      </figure>
+    </section>
+
+    <!-- 24-hour trace, drawn like a barograph chart -->
+    <section class="trace" aria-labelledby="traceTitle">
+      <div class="trace-head">
+        <h2 id="traceTitle">Last 24 hours</h2>
+        <div class="tabs" role="group" aria-label="Chart">
+          <button type="button" data-series="temp" aria-pressed="true">Temperature</button>
+          <button type="button" data-series="pressure" aria-pressed="false">Pressure</button>
+          <button type="button" data-series="wind" aria-pressed="false">Wind</button>
+        </div>
+      </div>
+      <div class="paper" id="paper">
+        <svg id="chart" role="img" aria-labelledby="chartNote"></svg>
+      </div>
+      <p class="chart-note" id="chartNote"></p>
+    </section>
+
+    <!-- Everything else the station reports -->
+    <section class="readings" id="readings" aria-label="All readings"></section>
+  </main>
+</body>
+</html>

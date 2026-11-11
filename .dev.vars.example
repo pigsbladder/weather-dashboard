@@ -1,0 +1,12 @@
+# Copy to .dev.vars for local testing (`npx wrangler pages dev public`).
+# .dev.vars is git-ignored. Never commit real keys.
+
+SITE_PASSWORD=change-me
+AW_APP_KEY=your-application-key
+AW_API_KEY=your-api-key
+
+# Optional: pick a station by MAC if your account has more than one
+# AW_MAC=00:00:00:00:00:00
+
+# Optional: 1 = show made-up preview data instead of calling Ambient
+AW_MOCK=0

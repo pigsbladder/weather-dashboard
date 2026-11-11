@@ -1,0 +1,348 @@
+/* ==========================================================================
+   Weather dashboard
+   Concept: a barograph. Cool chart-paper background, violet recorder ink
+   for the trace, and one typeface (Archivo) used at two very different
+   widths: condensed for instrument numerals, normal for reading text.
+   ========================================================================== */
+
+:root {
+  --paper: #E3EAEE;        /* page background, cool chart paper */
+  --sheet: #EDF2F4;        /* the chart's own sheet, a touch lighter */
+  --grid: #C9D5DB;         /* minor grid lines */
+  --grid-major: #A7B8C1;   /* every-6-hours lines */
+  --ink: #4A3C8F;          /* recorder ink: the trace and active states */
+  --ink-soft: #8D82C2;     /* secondary trace (wind gusts) */
+  --text: #1C2830;
+  --muted: #56666F;
+  --rain: #2E6A96;
+  --rule: #BFCCD3;
+
+  --font: 'Archivo', system-ui, sans-serif;
+  --narrow: 'wdth' 62;     /* condensed, for numerals */
+  --wide: 'wdth' 100;
+
+  --space: clamp(1rem, 3vw, 2rem);
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #151D23;
+    --sheet: #1A242B;
+    --grid: #24323B;
+    --grid-major: #34464F;
+    --ink: #B1A5F0;
+    --ink-soft: #6F659F;
+    --text: #E2EAEE;
+    --muted: #8FA1AB;
+    --rain: #7FB5DC;
+    --rule: #2C3A42;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--font);
+  font-variation-settings: var(--wide);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+h1, h2, h3, p, dl, dd, figure { margin: 0; }
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* --- Header -------------------------------------------------------------- */
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem 2rem;
+  padding: var(--space) var(--space) 0;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.top h1 {
+  font-size: 1.25rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.place { color: var(--muted); font-size: 0.9375rem; }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1.25rem;
+  font-size: 0.9375rem;
+}
+
+.updated { color: var(--muted); }
+.updated.stale { color: #A3462B; }
+
+.link-btn {
+  font: inherit;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.link-btn:hover { text-decoration-thickness: 2px; }
+
+.notice {
+  max-width: 1200px;
+  margin: 1rem auto 0;
+  padding: 0 var(--space);
+  color: #A3462B;
+}
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space) calc(var(--space) * 2);
+}
+
+/* --- Current conditions --------------------------------------------------- */
+
+.now {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: var(--space);
+  padding: clamp(1.5rem, 4vw, 3rem) 0 clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.temp {
+  display: flex;
+  align-items: flex-start;
+  font-variation-settings: var(--narrow);
+  font-weight: 300;
+  font-size: clamp(7.5rem, 24vw, 16rem);
+  line-height: 0.82;
+  letter-spacing: -0.04em;
+}
+
+.temp-unit {
+  font-size: 0.28em;
+  font-weight: 400;
+  letter-spacing: 0;
+  margin: 0.12em 0 0 0.08em;
+  color: var(--muted);
+}
+
+.summary {
+  max-width: 34ch;
+  margin-top: 1.25rem;
+  font-size: clamp(1.125rem, 2vw, 1.375rem);
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.wind { text-align: center; }
+
+.dial {
+  width: clamp(150px, 22vw, 220px);
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.dial .ring { fill: none; stroke: var(--rule); stroke-width: 1.5; }
+.dial .tick { stroke: var(--grid-major); stroke-width: 1.5; }
+.dial .tick.major { stroke: var(--muted); stroke-width: 2; }
+.dial .cardinal { fill: var(--muted); font: 600 15px var(--font); text-anchor: middle; dominant-baseline: central; }
+.dial .needle { fill: var(--ink); transition: transform 0.8s cubic-bezier(.3,1.4,.5,1); }
+.dial .speed { fill: var(--text); font: 300 44px var(--font); font-variation-settings: var(--narrow); text-anchor: middle; dominant-baseline: central; }
+.dial .speed-unit { fill: var(--muted); font: 500 13px var(--font); text-anchor: middle; }
+
+.wind figcaption {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+/* --- 24h trace (the one bold element) ------------------------------------- */
+
+.trace-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.trace-head h2 { font-size: 1rem; font-weight: 600; }
+
+.tabs { display: flex; gap: 0.25rem; }
+.tabs button {
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  cursor: pointer;
+}
+.tabs button:hover { color: var(--text); }
+.tabs button[aria-pressed="true"] {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.paper {
+  position: relative;
+  height: clamp(220px, 34vw, 340px);
+  background: var(--sheet);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+#chart { display: block; width: 100%; height: 100%; }
+#chart .grid { stroke: var(--grid); stroke-width: 1; }
+#chart .grid.major { stroke: var(--grid-major); }
+#chart .axis-label { fill: var(--muted); font: 500 12px var(--font); }
+#chart .value-label { fill: var(--muted); font: 500 12px var(--font); }
+#chart .ink {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+#chart .ink.soft { stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 3 4; }
+#chart .pen { fill: var(--ink); }
+
+/* The page-load moment: the pen draws the last 24 hours once. */
+#chart .ink.drawing { animation: draw 1.6s cubic-bezier(.45,.05,.3,1) forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+.chart-note {
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+/* --- All readings --------------------------------------------------------- */
+
+.readings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 2rem var(--space);
+  margin-top: clamp(2rem, 5vw, 3.5rem);
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+.readings h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.readings dl div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.4rem 0;
+}
+.readings dl div + div { border-top: 1px solid var(--rule); }
+.readings dt { color: var(--muted); }
+.readings dd {
+  font-variation-settings: var(--narrow);
+  font-size: 1.375rem;
+  font-weight: 450;
+  line-height: 1.2;
+  text-align: right;
+}
+.readings dd small {
+  font-variation-settings: var(--wide);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 0.2em;
+}
+.readings .rain dd { color: var(--rain); }
+
+/* --- Sign-in page --------------------------------------------------------- */
+
+.login {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space);
+}
+
+.login-card { width: min(100%, 22rem); }
+
+.login-trace { width: 100%; height: auto; margin-bottom: 1.5rem; }
+.login-trace path { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
+
+.login h1 { font-size: 1.75rem; font-weight: 650; letter-spacing: -0.01em; }
+.login p { color: var(--muted); margin: 0.5rem 0 1.5rem; }
+
+.login label { display: block; font-weight: 600; margin-bottom: 0.4rem; }
+
+.login input {
+  width: 100%;
+  font: inherit;
+  font-size: 1.0625rem;
+  color: var(--text);
+  background: var(--sheet);
+  border: 1px solid var(--grid-major);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+}
+.login input:focus-visible { outline-offset: 1px; }
+.login input[aria-invalid="true"] { border-color: #A3462B; }
+
+.login .login-error { color: #A3462B; margin: 0.5rem 0 0; }
+
+.login button {
+  width: 100%;
+  margin-top: 1rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--paper);
+  background: var(--ink);
+  border: 0;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+.login button:hover { filter: brightness(1.1); }
+
+/* --- Small screens -------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .now { grid-template-columns: 1fr; }
+  .wind { display: flex; align-items: center; gap: 1rem; text-align: left; }
+  .dial { width: 130px; }
+  .wind figcaption { margin: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #chart .ink.drawing { animation: none; stroke-dashoffset: 0; }
+  .dial .needle { transition: none; }
+}
