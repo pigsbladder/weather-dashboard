@@ -1,0 +1,15 @@
+// Cloudflare Worker config. Secrets (API keys, password) are NOT stored here:
+// set them as Secrets in the dashboard (Settings > Variables and Secrets),
+// or in .dev.vars for local testing.
+{
+  "name": "weather-dashboard",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // Run the Worker (password gate) before serving any static file
+    "run_worker_first": true
+  },
+  "observability": { "enabled": true }
+}

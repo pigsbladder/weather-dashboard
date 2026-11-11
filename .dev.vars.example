@@ -1,4 +1,4 @@
-# Copy to .dev.vars for local testing (`npx wrangler pages dev public`).
+# Copy to .dev.vars for local testing (`npx wrangler dev`).
 # .dev.vars is git-ignored. Never commit real keys.
 
 SITE_PASSWORD=change-me

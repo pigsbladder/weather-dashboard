@@ -1,8 +1,9 @@
 // ---------------------------------------------------------------------------
 // Password gate for the whole site.
 //
-// Every request passes through here first (Cloudflare Pages runs
-// functions/_middleware.js ahead of static files and other functions).
+// src/worker.js calls gate() on every request before anything else.
+// It returns a Response to send (login page, redirect, 401), or null to let
+// the request carry on to the API or the static files.
 //
 //   POST /login   -> checks the shared password, sets a signed session cookie
 //   GET  /logout  -> clears the cookie
@@ -20,14 +21,13 @@ const SESSION_DAYS = 30;
 // Files the login page itself needs, so they load before sign-in.
 const PUBLIC_PATHS = new Set(['/styles.css', '/favicon.svg']);
 
-export async function onRequest(context) {
-  const { request, env, next } = context;
+export async function gate(request, env) {
   const url = new URL(request.url);
 
   // No password set = site is public. Add SITE_PASSWORD in Cloudflare to lock it.
-  if (!env.SITE_PASSWORD) return next();
+  if (!env.SITE_PASSWORD) return null;
 
-  if (PUBLIC_PATHS.has(url.pathname)) return next();
+  if (PUBLIC_PATHS.has(url.pathname)) return null;
 
   // --- Sign in -------------------------------------------------------------
   if (url.pathname === '/login' && request.method === 'POST') {
@@ -66,7 +66,7 @@ export async function onRequest(context) {
   }
 
   // --- Everything else needs a valid session --------------------------------
-  if (await validSession(request, env.SITE_PASSWORD)) return next();
+  if (await validSession(request, env.SITE_PASSWORD)) return null;
 
   if (url.pathname.startsWith('/api/')) {
     return Response.json({ error: 'Sign in to see the weather.' }, { status: 401 });

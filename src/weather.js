@@ -12,7 +12,7 @@
 // visits cost zero or one upstream call.
 // ---------------------------------------------------------------------------
 
-import { mockWeather } from '../../lib/mock.js';
+import { mockWeather } from './mock.js';
 
 const AMBIENT = 'https://rt.ambientweather.net/v1';
 const CURRENT_TTL = 60;   // seconds
@@ -21,7 +21,8 @@ const HISTORY_TTL = 300;  // seconds
 // Only the fields the chart needs, to keep the payload small.
 const HISTORY_FIELDS = ['dateutc', 'tempf', 'baromrelin', 'windspeedmph', 'windgustmph', 'dailyrainin', 'humidity'];
 
-export async function onRequestGet({ request, env, waitUntil }) {
+export async function handleWeather(request, env, ctx) {
+  const waitUntil = (p) => ctx.waitUntil(p);
   // Preview mode: set AW_MOCK=1 to see the dashboard with made-up data.
   if (env.AW_MOCK === '1') return json(mockWeather(), 'private, max-age=30');
 
