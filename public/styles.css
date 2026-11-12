@@ -82,31 +82,38 @@ a:hover { color: #C2EEF5; }
 
 .notice { color: #FFB4A0; background: #2A1C1A; border: 1px solid #4A2C26; border-radius: 12px; padding: 10px 14px; }
 
-/* --- Alerts ------------------------------------------------------------------ */
+/* --- Alerts: one compact bar, expands to full text --------------------------- */
 
-.alerts { display: flex; flex-direction: column; gap: 8px; }
-.alert { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
-.alert summary {
+.alert-bar { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.alert-bar > summary {
   list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px;
-  padding: 12px 16px; min-height: 48px;
+  padding: 8px 14px; min-height: 48px; color: var(--amber);
 }
-.alert summary::-webkit-details-marker { display: none; }
-.alert .dot { flex: none; width: 12px; height: 12px; border-radius: 50%; }
-.alert .what { font-weight: 700; }
-.alert .when { color: var(--text-2); }
-.alert .where { color: var(--muted); margin-left: auto; text-align: right; font-size: 15px; }
-.alert .chev { flex: none; transition: transform 0.15s; color: var(--muted); }
-.alert[open] .chev { transform: rotate(180deg); }
-.alert .body { padding: 0 16px 16px 40px; color: var(--text-2); white-space: pre-line; max-width: 80ch; }
-.alert .body p + p { margin-top: 10px; }
-.alert.sev-severe { border-color: #6B3A33; background: #261A1A; }
-.alert.sev-severe .dot { background: #FF8A73; }
-.alert.sev-moderate { border-color: #5A4A2E; background: #221E17; }
-.alert.sev-moderate .dot { background: var(--amber); }
-.alert.sev-minor .dot { background: var(--teal); }
-.alert .upcoming { font-size: 13px; font-weight: 700; color: var(--bg); background: var(--text-2); border-radius: 999px; padding: 2px 8px; }
-@media (prefers-reduced-motion: reduce) { .alert .chev { transition: none; } }
-@media (max-width: 640px) { .alert summary { flex-wrap: wrap; } .alert .where { margin-left: 24px; text-align: left; flex-basis: 100%; } .alert .body { padding-left: 16px; } }
+.alert-bar > summary::-webkit-details-marker { display: none; }
+.chips-row { display: flex; flex-wrap: wrap; gap: 6px 8px; flex: 1; min-width: 0; color: var(--text-2); }
+.achip { display: inline-block; background: var(--panel-2); border-radius: 999px; padding: 4px 12px; font-size: 15px; }
+.achip .dot { margin-right: 7px; vertical-align: 0; }
+.achip strong { color: var(--text); font-weight: 700; }
+.more { flex: none; color: var(--teal); text-decoration: underline; text-underline-offset: 3px; font-size: 15px; }
+.alert-bar[open] .more { color: var(--muted); }
+.dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--teal); display: inline-block; }
+.sev-extreme .dot, .sev-severe .dot { background: #FF8A73; }
+.sev-moderate .dot { background: var(--amber); }
+.alert-list { border-top: 1px solid var(--line); padding: 4px 18px 16px; display: flex; flex-direction: column; }
+.alert-item { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.alert-item:last-child { border-bottom: 0; }
+.alert-item h3 { display: flex; align-items: center; gap: 10px; font-size: 17px; }
+.alert-item .meta { color: var(--muted); margin: 4px 0 8px 20px; font-size: 15px; }
+.alert-item .body { color: var(--text-2); white-space: pre-line; max-width: 80ch; margin-left: 20px; }
+.alert-item .body p + p { margin-top: 10px; }
+
+/* --- Icons -------------------------------------------------------------------- */
+
+.ico { flex: none; color: var(--muted); }
+.h-ico { display: flex; align-items: center; gap: 10px; }
+.with-ico { display: flex; align-items: center; gap: 8px; }
+.with-ico .ico { width: 20px; height: 20px; }
+.alert-bar .ico { color: var(--amber); }
 
 /* --- Shared panels ---------------------------------------------------------- */
 
@@ -349,5 +356,10 @@ h2 { font-size: 18px; font-weight: 700; }
   .mrow .mnow, .mrow.axis > span:last-child { display: none; }
   .radar { min-height: 380px; }
   .tide .big { font-size: 56px; }
+  .alert-bar > summary { flex-wrap: wrap; padding: 10px 12px; }
+  .alert-bar > summary > .ico { display: none; }
+  .chips-row { flex-basis: 100%; }
+  .achip { border-radius: 12px; }
+  .more { margin-left: auto; }
   .tide-chart svg { min-width: 720px; } /* keep labels readable; scroll sideways */
 }

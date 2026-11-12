@@ -80,6 +80,30 @@ function zonedEpoch(y, m, d, hh = 0, mm = 0) {
 const startOfLocalDay = (t) => { const z = zoned(t); return zonedEpoch(z.y, z.m, z.d); };
 
 // ---------------------------------------------------------------------------
+// Icons: simple outline set, 24×24, drawn with the current text colour.
+// ---------------------------------------------------------------------------
+
+const ICONS = {
+  outside: '<path d="M14 14.76V4.5a2 2 0 0 0-4 0v10.26a4 4 0 1 0 4 0Z"/><path d="M12 9v8"/>',
+  indoors: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11h14V9"/><path d="M10 20v-5h4v5"/>',
+  tides: '<path d="M2 13c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/><path d="M2 19c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/><path d="M12 8V2M9.5 4.5 12 2l2.5 2.5"/>',
+  sunmoon: '<path d="M15.5 4.5a7.5 7.5 0 1 0 4 13.6A6 6 0 0 1 15.5 4.5Z"/><path d="M19 3v3M17.5 4.5h3"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  rain: '<path d="M17 14H7.5a4.5 4.5 0 1 1 1.3-8.8A5.5 5.5 0 0 1 19.4 7.6 3.2 3.2 0 0 1 17 14Z"/><path d="M8 17.5l-1 2.5M12 17.5l-1 2.5M16 17.5l-1 2.5"/>',
+  wind: '<path d="M3 8h10a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h7"/>',
+  pressure: '<path d="M4.6 18.5a9 9 0 1 1 14.8 0"/><path d="m12 14 4-5"/><circle cx="12" cy="14" r="1.6"/>',
+  humidity: '<path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11Z"/>',
+  rainfall: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M12 12.5s2 2.2 2 3.6a2 2 0 0 1-4 0c0-1.4 2-3.6 2-3.6Z"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5Z"/>',
+  degree: '<path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2.5 1.4-4 2.5-5 .3 2 1.4 3 2.5 3 0-3-1-5 0-8Z"/>',
+  chart: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
+  forecast: '<path d="M12 3V2M5.6 5.6 4.9 4.9M3 12H2M19.1 4.9l-.7.7"/><path d="M7.5 11a4.5 4.5 0 0 1 8.7-1.6"/><path d="M17 20H9a4 4 0 1 1 1-7.9A5 5 0 0 1 19.5 14a3 3 0 0 1-2.5 6Z"/>',
+  alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+};
+const icon = (name) => `<svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+const heading = (name, text) => `<h2 class="h-ico">${icon(name)}<span>${text}</span></h2>`;
+
+// ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
 
@@ -223,27 +247,43 @@ function whenLabel(t) {
 
 function renderAlerts() {
   const el = $('alerts');
-  const list = state.alerts?.alerts || [];
+  const list = mergeAlerts(state.alerts?.alerts || []);
   el.hidden = !list.length;
   if (!list.length) { el.innerHTML = ''; return; }
   const now = Date.now();
-  el.innerHTML = list.map((a) => {
-    const start = Date.parse(a.onset), end = Date.parse(a.ends);
-    const upcoming = start > now;
-    const when = upcoming ? `from ${whenLabel(start)} to ${whenLabel(end)}` : `until ${whenLabel(end)}`;
-    const sev = (a.severity || 'unknown').toLowerCase();
-    const body = [a.description, a.instruction].filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
-    return `<details class="alert sev-${sev}">
-      <summary>
-        <span class="dot" aria-hidden="true"></span>
-        <span><span class="what">${esc(a.event)}</span> <span class="when">${when}</span></span>
-        ${upcoming ? '<span class="upcoming">Coming up</span>' : ''}
-        <span class="where">${a.marine ? 'On the water: ' : ''}${esc(a.area)}</span>
-        <svg class="chev" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </summary>
-      <div class="body">${body || '<p>No details given.</p>'}</div>
-    </details>`;
-  }).join('');
+  const wasOpen = el.querySelector('details')?.open;
+  const sev = (a) => (a.severity || 'unknown').toLowerCase();
+  const when = (a) => Date.parse(a.onset) > now ? `from ${whenLabel(Date.parse(a.onset))}` : `until ${whenLabel(Date.parse(a.ends))}`;
+
+  // One compact bar: a chip per alert. Open it for the full text.
+  el.innerHTML = `<details class="alert-bar"${wasOpen ? ' open' : ''}>
+    <summary>
+      ${icon('alert')}
+      <span class="chips-row">${list.map((a) => `<span class="achip sev-${sev(a)}"><span class="dot" aria-hidden="true"></span><strong>${esc(a.event)}</strong> ${when(a)}</span>`).join('')}</span>
+      <span class="more">Details</span>
+    </summary>
+    <div class="alert-list">${list.map((a) => {
+      const start = Date.parse(a.onset), end = Date.parse(a.ends);
+      const span = start > now ? `From ${whenLabel(start)} to ${whenLabel(end)}` : `Until ${whenLabel(end)}`;
+      const body = [a.description, a.instruction].filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
+      return `<section class="alert-item sev-${sev(a)}">
+        <h3><span class="dot" aria-hidden="true"></span>${esc(a.event)}</h3>
+        <p class="meta">${span}. ${a.marine ? 'On the water: ' : ''}${esc(a.area)}.</p>
+        <div class="body">${body || '<p>No details given.</p>'}</div>
+      </section>`;
+    }).join('')}</div>
+  </details>`;
+}
+
+// Same alert issued for several zones at once → one entry with both areas.
+function mergeAlerts(list) {
+  const out = [];
+  for (const a of list) {
+    const twin = out.find((b) => b.event === a.event && b.ends === a.ends && b.onset === a.onset);
+    if (twin) { if (!twin.area.includes(a.area)) twin.area += `; ${a.area}`; continue; }
+    out.push({ ...a });
+  }
+  return out;
 }
 
 // --- Hero -------------------------------------------------------------------
@@ -317,9 +357,9 @@ function summary(c, h) {
 
 function renderIndoor() {
   const c = state.data.current, u = U();
-  if (c.tempinf == null) { $('tileIndoor').innerHTML = '<h2>Indoors</h2><p class="muted">No indoor sensor reporting.</p>'; return; }
+  if (c.tempinf == null) { $('tileIndoor').innerHTML = `${heading('indoors', 'Indoors')}<p class="muted">No indoor sensor reporting.</p>`; return; }
   $('tileIndoor').innerHTML = `
-    <h2>Indoors</h2>
+    ${heading('indoors', 'Indoors')}
     <div class="lead">
       <span class="big num amber">${fmt(C.temp(c.tempinf), 1)}<span class="big-unit">${u.temp}</span></span>
       <span class="big num" style="font-size:36px">${fmt(c.humidityin)}<span class="big-unit">%</span></span>
@@ -334,7 +374,7 @@ function renderIndoor() {
 function renderSunMoon() {
   const el = $('tileSunMoon');
   const co = state.data.coords;
-  if (!window.SunCalc || !co) { el.innerHTML = '<h2>Sun and moon</h2><p class="muted">Needs the station’s location.</p>'; return; }
+  if (!window.SunCalc || !co) { el.innerHTML = `${heading('sunmoon', 'Sun and moon')}<p class="muted">Needs the station’s location.</p>`; return; }
   const now = new Date();
   const s = SunCalc.getTimes(now, co.lat, co.lon);
   const ill = SunCalc.getMoonIllumination(now);
@@ -343,7 +383,7 @@ function renderSunMoon() {
   const valid = (d) => d instanceof Date && !Number.isNaN(d.getTime());
 
   el.innerHTML = `
-    <h2>Sun and moon</h2>
+    ${heading('sunmoon', 'Sun and moon')}
     <div class="moon-row">
       ${kv([
         ['Sunrise', valid(s.sunrise) ? clock(s.sunrise) : '—'],
@@ -392,7 +432,7 @@ function renderUV() {
   const uv = c.uv ?? 0;
   const segs = Array.from({ length: 11 }, (_, i) => `<div style="height:8px;border-radius:2px;background:${i <= uv && (i > 0 || uv === 0) ? '#FFC27A' : '#2B3C45'}"></div>`).join('');
   $('tileUV').innerHTML = `
-    <h2>Sun and UV</h2>
+    ${heading('sun', 'Sun and UV')}
     <div class="lead"><span class="big num">${fmt(uv)}</span><span class="note">UV index, ${uvWord(uv)}</span></div>
     <div aria-hidden="true" style="display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:3px">${segs}</div>
     ${kv([
@@ -408,7 +448,7 @@ function renderUV() {
 function renderRain() {
   const { current: c, history: h } = state.data, u = U();
   $('tileRain').innerHTML = `
-    <h2>Rain</h2>
+    ${heading('rain', 'Rain')}
     <div class="lead"><span class="big num teal">${fmt(C.rain(c.dailyrainin), u.rainDp)}</span><span class="muted">${u.rain} today</span></div>
     <svg viewBox="0 0 1000 60" preserveAspectRatio="none" role="img" aria-label="Rain rate over the last 24 hours" style="width:100%;height:44px;display:block">
       <path d="${barsPath(h.map((r) => r.hourlyrainin ?? 0), h)}" stroke="#86DCEB" stroke-width="3" vector-effect="non-scaling-stroke"/>
@@ -432,7 +472,7 @@ function renderWind() {
   }
   const label = (x, y, t, bold) => `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" fill="#B2C3CA" font-size="13" ${bold ? 'font-weight="700"' : ''}>${t}</text>`;
   $('tileWind').innerHTML = `
-    <h2>Wind</h2>
+    ${heading('wind', 'Wind')}
     <div class="with-dial">
       <svg viewBox="-80 -80 160 160" width="128" height="128" role="img" aria-label="${speed < 1 ? 'Calm' : `${fmt(C.speed(speed))} ${u.speed}`}, from the ${dir8(deg)}">
         <circle r="66" fill="none" stroke="#2B3C45" stroke-width="1.5"/>
@@ -468,7 +508,7 @@ function renderPressure() {
   const lo = state.metric ? '948' : '28', hi = state.metric ? '1084' : '32';
 
   $('tilePressure').innerHTML = `
-    <h2>Pressure</h2>
+    ${heading('pressure', 'Pressure')}
     <div class="with-dial">
       <svg viewBox="0 0 180 150" width="140" height="117" role="img" aria-label="${fmt(C.press(p), u.pressDp)} ${u.press}, ${trend.toLowerCase()}">
         <path d="${arc(-120, 120)}" fill="none" stroke="#2B3C45" stroke-width="10" stroke-linecap="round"/>
@@ -492,7 +532,7 @@ function renderHumidity() {
   const note = spread != null && spread <= 2 && c.humidity >= 95 ? 'Air is saturated. Fog likely.'
     : c.humidity >= 80 ? 'Damp air.' : c.humidity <= 30 ? 'Dry air.' : 'Comfortable.';
   $('tileHumidity').innerHTML = `
-    <h2>Humidity</h2>
+    ${heading('humidity', 'Humidity')}
     <div class="lead"><span class="big num teal">${fmt(c.humidity)}</span><span class="muted" style="font-size:24px">%</span></div>
     <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, c.humidity ?? 0)}%"></div></div>
     ${kv([
@@ -532,7 +572,7 @@ function renderCalendar() {
   }
   const filling = state.rain?.pending ? ' Filling in earlier days…' : '';
   el.innerHTML = `
-    <div class="row-between"><h2>Rainfall, ${monthName}</h2><span class="num strong teal" style="font-size:18px">${fmt(C.rain(c.monthlyrainin), u.rainDp)} ${u.rain}</span></div>
+    <div class="row-between">${heading('rainfall', `Rainfall, ${monthName}`)}<span class="num strong teal" style="font-size:18px">${fmt(C.rain(c.monthlyrainin), u.rainDp)} ${u.rain}</span></div>
     <div class="cal">${cells}</div>
     <p class="muted small">Per day, in ${u.rain === 'in' ? 'inches' : 'millimetres'}. Darker cells had more rain. Today is outlined.${filling}</p>`;
 }
@@ -567,7 +607,7 @@ function renderRose() {
   const lbl = (x, y, t, b) => `<text x="${x}" y="${y}" text-anchor="middle" fill="${b ? '#F1F6F8' : '#B2C3CA'}" font-size="13" ${b ? 'font-weight="700"' : ''}>${t}</text>`;
 
   $('tileRose').innerHTML = `
-    <h2>Wind rose, 24 hours</h2>
+    ${heading('compass', 'Wind rose, 24 hours')}
     <svg viewBox="-110 -110 220 220" role="img" aria-label="Wind rose. ${note}" style="width:100%;max-width:240px;height:auto;align-self:center">
       <circle r="96" fill="none" stroke="#2B3C45"/><circle r="64" fill="none" stroke="#2B3C45"/><circle r="32" fill="none" stroke="#2B3C45"/>
       <path d="M0 -96V96M-96 0H96" stroke="#2B3C45"/>
@@ -583,7 +623,7 @@ function renderRose() {
 function renderDegree() {
   const { history: h, coords } = state.data, u = U();
   const temps = h.map((r) => r.tempf).filter((v) => v != null);
-  if (!temps.length) { $('tileDegree').innerHTML = '<h2>Degree days</h2><p class="muted">Not enough data yet.</p>'; return; }
+  if (!temps.length) { $('tileDegree').innerHTML = `${heading('degree', 'Degree days')}<p class="muted">Not enough data yet.</p>`; return; }
   const mean = temps.reduce((a, b) => a + b, 0) / temps.length;
   const tmax = Math.max(...temps), tmin = Math.min(...temps);
   const hdd = Math.max(0, 65 - mean), cdd = Math.max(0, mean - 65);
@@ -604,7 +644,7 @@ function renderDegree() {
   }
   const dd = (v) => fmt(C.delta(v), 1);
   $('tileDegree').innerHTML = `
-    <h2>Degree days</h2>
+    ${heading('degree', 'Degree days')}
     <dl class="rows">
       <div><dt>Heating</dt><dd class="amber">${dd(hdd)}</dd></div>
       <div><dt>Cooling</dt><dd>${dd(cdd)}</dd></div>
@@ -1032,6 +1072,9 @@ $('radarFrame').addEventListener('input', (e) => {
   if (radar.timer) togglePlay();
   showFrame(Number(e.target.value));
 });
+
+// Static headings in index.html get their icon from data-icon
+document.querySelectorAll('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)));
 
 // Scripts load with `defer`; wait for Leaflet/SunCalc before first render.
 window.addEventListener('DOMContentLoaded', () => {

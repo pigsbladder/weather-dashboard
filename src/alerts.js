@@ -7,7 +7,7 @@
 //     Those are issued for marine zones, never for a point on land, so we find
 //     the marine zones within MARINE_RADIUS_KM of the station once (zone
 //     shapes are cached for 30 days) and ask for their alerts too.
-//     Override with NWS_MARINE_ZONES="PKZ036,PKZ641" if you want specific ones.
+//     Override with NWS_MARINE_ZONES="PKZ036,PKZ641" (adds Dixon Entrance) if you want specific ones.
 //
 // The feed can include cancelled or long-expired messages, so those are
 // filtered out, and repeated updates of the same alert are merged.
@@ -17,7 +17,7 @@ import { cached, json } from './cache.js';
 
 const NWS = 'https://api.weather.gov';
 const UA = 'weather.basi.onl personal weather dashboard';
-const MARINE_RADIUS_KM = 60;
+const MARINE_RADIUS_KM = 25; // the station's own waters (Clarence Strait for Ketchikan)
 const HEADERS = { 'user-agent': UA, accept: 'application/geo+json' };
 const SEVERITY = { Extreme: 0, Severe: 1, Moderate: 2, Minor: 3, Unknown: 4 };
 
@@ -41,7 +41,7 @@ export async function handleAlerts(request, env, ctx) {
     // Nearby marine zones (cached a month)
     const marine = env.NWS_MARINE_ZONES
       ? env.NWS_MARINE_ZONES.split(',').map((z) => z.trim()).filter(Boolean)
-      : await cached(request, `nws-marine-${key}`, 30 * 86400, () => nearbyMarineZones(lat, lon, office), ctx);
+      : await cached(request, `nws-marine-${MARINE_RADIUS_KM}-${key}`, 30 * 86400, () => nearbyMarineZones(lat, lon, office), ctx);
 
     const alerts = await cached(request, `nws-alerts-${key}`, 180, async () => {
       const lists = [getJSON(`${NWS}/alerts/active?point=${key}`)];
