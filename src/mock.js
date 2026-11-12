@@ -82,3 +82,21 @@ export function mockRainMonth() {
   for (let i = 1; i < Math.min(d.getDate(), 16); i++) days[i] = vals[i - 1];
   return { year: d.getFullYear(), month: d.getMonth() + 1, today: d.getDate(), tz: 'America/Sitka', days, pending: false };
 }
+
+export function mockAlerts() {
+  const h = 3600e3, now = Date.now();
+  return {
+    marineZones: ['PKZ036', 'PKZ641'],
+    alerts: [
+      { id: 'a1', event: 'Storm Warning', severity: 'Severe', marine: true, area: 'Clarence Strait',
+        headline: 'Storm Warning issued by NWS Juneau AK', onset: new Date(now + 9 * h).toISOString(), ends: new Date(now + 21 * h).toISOString(),
+        description: '* WHAT...Southeast winds 50 kt with gusts to 60 kt. Seas 12 ft.\n\n* WHERE...Clarence Strait.', instruction: 'Mariners should remain in port.' },
+      { id: 'a2', event: 'Wind Advisory', severity: 'Moderate', marine: false, area: 'Southern Inner Channels',
+        headline: 'Wind Advisory issued by NWS Juneau AK', onset: new Date(now - 3 * h).toISOString(), ends: new Date(now + 1.5 * h).toISOString(),
+        description: '* WHAT...Southeast winds 25 to 35 mph with gusts up to 55 mph.\n\n* WHERE...Ketchikan.', instruction: 'Secure outdoor objects.' },
+      { id: 'a3', event: 'Small Craft Advisory', severity: 'Minor', marine: true, area: 'Clarence Strait',
+        headline: 'Small Craft Advisory issued by NWS Juneau AK', onset: new Date(now - 5 * h).toISOString(), ends: new Date(now + 1.5 * h).toISOString(),
+        description: 'Southeast wind 25 kt. Seas 6 ft.', instruction: null },
+    ],
+  };
+}

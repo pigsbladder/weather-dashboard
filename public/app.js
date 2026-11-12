@@ -18,6 +18,7 @@ const state = {
   tides: null,     // /api/tides
   forecast: null,  // /api/forecast
   rain: null,      // /api/rain-month
+  alerts: null,    // /api/alerts
   metric: readPref(),
 };
 
@@ -106,6 +107,13 @@ function valueAgo(hist, key, hoursAgo) {
   return r ? r[key] : null;
 }
 
+// Highest value of `key` in the last `hours` of history
+function maxSince(hist, key, hours) {
+  const since = Date.now() - hours * 3600e3;
+  const vals = hist.filter((r) => r.dateutc >= since && r[key] != null).map((r) => r[key]);
+  return vals.length ? Math.max(...vals) : null;
+}
+
 // ---------------------------------------------------------------------------
 // Loading
 // ---------------------------------------------------------------------------
@@ -125,6 +133,7 @@ async function loadWeather() {
     renderAll();
     initMap();
     if (!state.forecast) loadForecast();
+    if (!state.alerts) loadAlerts();
   } catch (err) {
     setNotice(state.data ? `${err.message} Showing the last reading received.` : err.message);
   }
@@ -140,6 +149,16 @@ async function loadForecast() {
   if (!c) { $('forecastNote').textContent = 'Station location unknown, so no forecast.'; return; }
   try { state.forecast = await getJSON(`/api/forecast?lat=${c.lat}&lon=${c.lon}`); renderForecast(); }
   catch (err) { $('forecastNote').textContent = err.message; }
+}
+
+async function loadAlerts() {
+  const c = state.data?.coords;
+  if (!c) return;
+  try {
+    state.alerts = await getJSON(`/api/alerts?lat=${c.lat}&lon=${c.lon}`);
+    renderAlerts();
+    renderHero(); // the summary mentions wind alerts
+  } catch { /* banner just stays hidden */ }
 }
 
 let rainPolls = 0;
@@ -175,6 +194,7 @@ function renderAll() {
   renderMultiples();
   renderTides();
   renderForecast();
+  renderAlerts();
 }
 
 function renderHeader() {
@@ -192,6 +212,38 @@ function renderUpdated() {
   const stale = Date.now() - t > 15 * 60e3;
   $('updated').textContent = stale ? `No report since ${clock(t)}` : `Updated ${ago(t)}`;
   $('updated').style.color = stale ? '#FFB4A0' : '';
+}
+
+// --- Alerts banner ----------------------------------------------------------
+
+function whenLabel(t) {
+  const sameDay = startOfLocalDay(t) === startOfLocalDay(Date.now());
+  return sameDay ? clock(t) : `${fmtTime(t, { weekday: 'short' })} ${clock(t)}`;
+}
+
+function renderAlerts() {
+  const el = $('alerts');
+  const list = state.alerts?.alerts || [];
+  el.hidden = !list.length;
+  if (!list.length) { el.innerHTML = ''; return; }
+  const now = Date.now();
+  el.innerHTML = list.map((a) => {
+    const start = Date.parse(a.onset), end = Date.parse(a.ends);
+    const upcoming = start > now;
+    const when = upcoming ? `from ${whenLabel(start)} to ${whenLabel(end)}` : `until ${whenLabel(end)}`;
+    const sev = (a.severity || 'unknown').toLowerCase();
+    const body = [a.description, a.instruction].filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
+    return `<details class="alert sev-${sev}">
+      <summary>
+        <span class="dot" aria-hidden="true"></span>
+        <span><span class="what">${esc(a.event)}</span> <span class="when">${when}</span></span>
+        ${upcoming ? '<span class="upcoming">Coming up</span>' : ''}
+        <span class="where">${a.marine ? 'On the water: ' : ''}${esc(a.area)}</span>
+        <svg class="chev" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <div class="body">${body || '<p>No details given.</p>'}</div>
+    </details>`;
+  }).join('');
 }
 
 // --- Hero -------------------------------------------------------------------
@@ -226,10 +278,25 @@ function renderHero() {
 function summary(c, h) {
   const parts = [];
   const word = rainWord(c.hourlyrainin);
-  const speed = c.windspeedmph ?? 0;
-  const windTxt = speed < 1 ? 'no wind' : speed < 8 ? 'a light breeze' : speed < 20 ? 'a steady wind' : 'strong wind';
-  if (word) parts.push(`${word === 'heavy' ? 'Raining hard' : word === 'moderate' ? 'Raining steadily' : 'Light rain'} with ${windTxt}.`);
-  else parts.push(`Dry right now with ${windTxt}.`);
+  const u = U();
+
+  // Wind: 10-minute average plus the strongest gust in the last hour, so a
+  // gusty day never reads as "no wind".
+  const avg = c.windspdmph_avg10m ?? c.windspeedmph ?? 0;
+  const gust = Math.max(c.windgustmph ?? 0, maxSince(h, 'windgustmph', 1) ?? 0);
+  const g = `${fmt(C.speed(gust))} ${u.speed}`;
+  let windTxt;
+  if (avg < 1 && gust < 5) windTxt = 'calm air';
+  else if (gust >= 15) windTxt = avg >= 3 ? `${fmt(C.speed(avg))} ${u.speed} wind gusting to ${g}` : `gusts to ${g}`;
+  else if (avg < 8) windTxt = 'a light breeze';
+  else windTxt = `a steady ${fmt(C.speed(avg))} ${u.speed} wind`;
+
+  if (word) parts.push(`${word === 'heavy' ? 'Raining hard' : word === 'moderate' ? 'Raining steadily' : 'Light rain'}, with ${windTxt}.`);
+  else parts.push(`Dry right now, with ${windTxt}.`);
+
+  // A wind alert nearby while the (sheltered) station reads low
+  const windAlert = (state.alerts?.alerts || []).find((a) => /wind|gale|storm|hurricane/i.test(a.event) && Date.parse(a.onset) <= Date.now());
+  if (windAlert && gust < 25) parts.push(`A ${windAlert.event} is in effect, so open ground and the water are windier than this sheltered station shows.`);
 
   const spread = c.tempf != null && c.dewPoint != null ? c.tempf - c.dewPoint : null;
   if (spread != null && spread <= 2 && (c.humidity ?? 0) >= 95) {
@@ -377,7 +444,8 @@ function renderWind() {
       </svg>
       ${kv([
         ['From', dir16(deg)],
-        ['Gusts', withUnit(fmt(C.speed(c.windgustmph), 1), u.speed)],
+        ['Gust now', withUnit(fmt(C.speed(c.windgustmph), 1), u.speed)],
+        ['Gust, last hour', withUnit(fmt(C.speed(maxSince(state.data.history, 'windgustmph', 1)), 1), u.speed)],
         ['Today’s peak', withUnit(fmt(C.speed(c.maxdailygust), 1), u.speed), 'amber'],
       ], 'kv col')}
     </div>`;
@@ -973,6 +1041,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 setInterval(loadWeather, 60_000);
 setInterval(loadTides, 30 * 60_000);
+setInterval(loadAlerts, 3 * 60_000);
 setInterval(() => { state.forecast = null; loadForecast(); }, 30 * 60_000);
 setInterval(renderUpdated, 20_000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadWeather(); });
