@@ -181,7 +181,7 @@ export async function handleRainMonth(request, env, ctx) {
       }
     }
 
-    return json({ year: today.y, month: today.m, today: today.d, tz, days: out, pending }, 'private, max-age=60');
+    return json({ year: today.y, month: today.m, today: today.d, tz, days: out, pending }, pending ? 'no-store' : 'private, max-age=60');
   } catch {
     return json({ error: 'Couldn’t load this month’s rain history.' }, 'no-store', 502);
   }
@@ -243,7 +243,7 @@ export async function handleRainYear(request, env, ctx) {
       }
       if (v == null) missing.push(m); else months[m] = v;
     }
-    return json({ year: today.y, months, missing, pending }, 'private, max-age=300');
+    return json({ year: today.y, months, missing, pending }, pending ? 'no-store' : 'private, max-age=300');
   } catch {
     return json({ error: 'Couldn’t load this year’s rain history.' }, 'no-store', 502);
   }

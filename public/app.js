@@ -143,8 +143,8 @@ function maxSince(hist, key, hours) {
 // Loading
 // ---------------------------------------------------------------------------
 
-async function getJSON(url) {
-  const res = await fetch(url, { headers: { accept: 'application/json' } });
+async function getJSON(url, opts = {}) {
+  const res = await fetch(url, { headers: { accept: 'application/json' }, ...opts });
   if (res.status === 401) { location.reload(); throw new Error('Signed out'); }
   const body = await res.json();
   if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
@@ -189,7 +189,7 @@ async function loadAlerts() {
 let yearPolls = 0;
 async function loadRainYear() {
   try {
-    state.rainYear = await getJSON('/api/rain-year');
+    state.rainYear = await getJSON('/api/rain-year', { cache: yearPolls ? 'no-store' : 'default' });
     renderRain();
     if (state.rainYear.pending && yearPolls++ < 8) setTimeout(loadRainYear, 12_000);
   } catch {
@@ -200,7 +200,7 @@ async function loadRainYear() {
 let rainPolls = 0;
 async function loadRainMonth() {
   try {
-    state.rain = await getJSON('/api/rain-month');
+    state.rain = await getJSON('/api/rain-month', { cache: rainPolls ? 'no-store' : 'default' });
     renderCalendar();
     // The server fills in a few past days per request; keep asking until done.
     if (state.rain.pending && rainPolls++ < 10) setTimeout(loadRainMonth, 10_000);
