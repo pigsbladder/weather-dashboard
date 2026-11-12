@@ -191,8 +191,10 @@ async function loadRainYear() {
   try {
     state.rainYear = await getJSON('/api/rain-year');
     renderRain();
-    if (state.rainYear.pending && yearPolls++ < 6) setTimeout(loadRainYear, 12_000);
-  } catch { /* stays as a dash */ }
+    if (state.rainYear.pending && yearPolls++ < 8) setTimeout(loadRainYear, 12_000);
+  } catch {
+    if (yearPolls++ < 8) setTimeout(loadRainYear, 15_000); // e.g. Ambient rate limit; try again
+  }
 }
 
 let rainPolls = 0;
@@ -202,7 +204,6 @@ async function loadRainMonth() {
     renderCalendar();
     // The server fills in a few past days per request; keep asking until done.
     if (state.rain.pending && rainPolls++ < 10) setTimeout(loadRainMonth, 10_000);
-    else if (state.data?.current?.yearlyrainin == null && !state.rainYear) setTimeout(loadRainYear, 3000);
   } catch { /* calendar shows today only */ }
 }
 
@@ -466,7 +467,8 @@ function yearTotal(c) {
 
 function yearNote(c) {
   const ry = state.rainYear;
-  if (c.yearlyrainin != null || !ry) return '';
+  if (c.yearlyrainin != null) return '';
+  if (!ry) return ' Adding up this year…';
   if (ry.pending) return ' Adding up this year…';
   if (!ry.missing.length) return '';
   const first = Math.max(...ry.missing) + 1;
@@ -1110,6 +1112,8 @@ window.addEventListener('DOMContentLoaded', () => {
   loadWeather();
   loadTides();
   setTimeout(loadRainMonth, 2500); // after the first weather call, to spare Ambient's rate limit
+  // Yearly rain fallback: only needed when the station has no yearly total.
+  setTimeout(() => { if (state.data && state.data.current.yearlyrainin == null) loadRainYear(); }, 8000);
 });
 setInterval(loadWeather, 60_000);
 setInterval(loadTides, 30 * 60_000);
