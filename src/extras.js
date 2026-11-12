@@ -188,6 +188,68 @@ export async function handleRainMonth(request, env, ctx) {
 }
 
 // ---------------------------------------------------------------------------
+// Rain this year (fallback when the station doesn't report yearlyrainin)
+//
+//   GET /api/rain-year   → { year, months: {1: 9.8, ...}, missing: [..], pending }
+//
+// For each finished month, the last record of that month carries the month's
+// total (monthlyrainin). One Ambient call per month, cached for good. The
+// current month comes from the live reading in the browser.
+// ---------------------------------------------------------------------------
+
+export async function handleRainYear(request, env, ctx) {
+  if (env.AW_MOCK === '1') {
+    const m = new Date().getMonth() + 1, months = {};
+    for (let i = 1; i < m; i++) months[i] = [12.1, 9.4, 11.8, 8.2, 6.5, 5.9, 7.1, 9.8, 14.2, 21.4, 18.7][i - 1];
+    return json({ year: new Date().getFullYear(), months, missing: [], pending: false }, 'private, max-age=300');
+  }
+  if (!env.AW_APP_KEY || !env.AW_API_KEY) return json({ error: 'API keys missing.' }, 'no-store', 500);
+  const auth = `applicationKey=${encodeURIComponent(env.AW_APP_KEY)}&apiKey=${encodeURIComponent(env.AW_API_KEY)}`;
+
+  try {
+    const station = await cached(request, 'rain-station', 86400, async () => {
+      const r = await fetch(`${AMBIENT}/devices?${auth}`);
+      if (!r.ok) throw new Error(`Ambient ${r.status}`);
+      const list = await r.json();
+      const s = env.AW_MAC ? list.find((d) => d.macAddress === env.AW_MAC) : list[0];
+      return { mac: s.macAddress, tz: s.lastData?.tz || 'UTC' };
+    }, ctx);
+
+    const tz = station.tz;
+    const today = localDate(Date.now(), tz);
+    const months = {};
+    const missing = [];
+    let fetched = 0, pending = false;
+
+    for (let m = 1; m < today.m; m++) {
+      const key = `rainmonth-${station.mac}-${today.y}-${pad(m)}`;
+      let v = await peek(request, key);
+      if (v === undefined) {
+        if (fetched >= DAYS_PER_CALL) { pending = true; continue; }
+        const lastDay = new Date(Date.UTC(today.y, m, 0)).getUTCDate();
+        const end = zonedEpoch(today.y, m, lastDay, 23, 59, tz);
+        if (fetched > 0) await sleep(1100);
+        fetched++;
+        try {
+          v = await cached(request, key, 40 * 86400, async () => {
+            const r = await fetch(`${AMBIENT}/devices/${encodeURIComponent(station.mac)}?${auth}&endDate=${end}&limit=1`);
+            if (!r.ok) throw new Error(`Ambient ${r.status}`);
+            const row = (await r.json())[0];
+            // No record in that month = station wasn't reporting yet
+            if (!row || localDate(row.dateutc, tz).m !== m) return null;
+            return row.monthlyrainin ?? null;
+          }, ctx);
+        } catch { pending = true; continue; }
+      }
+      if (v == null) missing.push(m); else months[m] = v;
+    }
+    return json({ year: today.y, months, missing, pending }, 'private, max-age=300');
+  } catch {
+    return json({ error: 'Couldn’t load this year’s rain history.' }, 'no-store', 502);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Time zone helpers (no libraries in Workers, so use Intl)
 // ---------------------------------------------------------------------------
 

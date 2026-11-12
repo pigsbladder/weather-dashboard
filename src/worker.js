@@ -11,7 +11,7 @@
 
 import { gate } from './auth.js';
 import { handleWeather } from './weather.js';
-import { handleTides, handleForecast, handleRainMonth } from './extras.js';
+import { handleTides, handleForecast, handleRainMonth, handleRainYear } from './extras.js';
 import { handleAlerts } from './alerts.js';
 import { mockAlerts } from './mock.js';
 
@@ -26,6 +26,7 @@ export default {
       if (pathname === '/api/tides') return handleTides(request, env, ctx);
       if (pathname === '/api/forecast') return handleForecast(request, env, ctx);
       if (pathname === '/api/rain-month') return handleRainMonth(request, env, ctx);
+      if (pathname === '/api/rain-year') return handleRainYear(request, env, ctx);
       if (pathname === '/api/alerts') {
         if (env.AW_MOCK === '1') return Response.json(mockAlerts());
         return handleAlerts(request, env, ctx);

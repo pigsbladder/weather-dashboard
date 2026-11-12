@@ -19,6 +19,7 @@ const state = {
   forecast: null,  // /api/forecast
   rain: null,      // /api/rain-month
   alerts: null,    // /api/alerts
+  rainYear: null,  // /api/rain-year (only if the station has no yearly total)
   metric: readPref(),
 };
 
@@ -185,6 +186,15 @@ async function loadAlerts() {
   } catch { /* banner just stays hidden */ }
 }
 
+let yearPolls = 0;
+async function loadRainYear() {
+  try {
+    state.rainYear = await getJSON('/api/rain-year');
+    renderRain();
+    if (state.rainYear.pending && yearPolls++ < 6) setTimeout(loadRainYear, 12_000);
+  } catch { /* stays as a dash */ }
+}
+
 let rainPolls = 0;
 async function loadRainMonth() {
   try {
@@ -192,6 +202,7 @@ async function loadRainMonth() {
     renderCalendar();
     // The server fills in a few past days per request; keep asking until done.
     if (state.rain.pending && rainPolls++ < 10) setTimeout(loadRainMonth, 10_000);
+    else if (state.data?.current?.yearlyrainin == null && !state.rainYear) setTimeout(loadRainYear, 3000);
   } catch { /* calendar shows today only */ }
 }
 
@@ -445,6 +456,24 @@ function renderUV() {
 
 // --- Rain / wind / pressure / humidity --------------------------------------
 
+// Station's own yearly total if it sends one, else finished months + this month.
+function yearTotal(c) {
+  if (c.yearlyrainin != null) return c.yearlyrainin;
+  const ry = state.rainYear;
+  if (!ry || ry.pending) return null;
+  return Object.values(ry.months).reduce((a, b) => a + b, 0) + (c.monthlyrainin ?? 0);
+}
+
+function yearNote(c) {
+  const ry = state.rainYear;
+  if (c.yearlyrainin != null || !ry) return '';
+  if (ry.pending) return ' Adding up this year…';
+  if (!ry.missing.length) return '';
+  const first = Math.max(...ry.missing) + 1;
+  const name = new Intl.DateTimeFormat(undefined, { month: 'long', timeZone: 'UTC' }).format(Date.UTC(ry.year, first - 1, 1));
+  return ` Year total counts from ${name}, when the station started reporting.`;
+}
+
 function renderRain() {
   const { current: c, history: h } = state.data, u = U();
   $('tileRain').innerHTML = `
@@ -456,9 +485,9 @@ function renderRain() {
     ${kv([
       ['This week', fmt(C.rain(c.weeklyrainin), u.rainDp)],
       ['This month', fmt(C.rain(c.monthlyrainin), u.rainDp)],
-      ['This year', fmt(C.rain(c.yearlyrainin), u.rainDp)],
+      ['This year', fmt(C.rain(yearTotal(c)), u.rainDp)],
     ])}
-    <p class="muted small">${c.lastRain && !c.hourlyrainin ? `Last rain ${ago(new Date(c.lastRain).getTime())}. ` : ''}Amounts in ${u.rain === 'in' ? 'inches' : 'millimetres'}.</p>`;
+    <p class="muted small">${c.lastRain && !c.hourlyrainin ? `Last rain ${ago(new Date(c.lastRain).getTime())}. ` : ''}Amounts in ${u.rain === 'in' ? 'inches' : 'millimetres'}.${yearNote(c)}</p>`;
 }
 
 function renderWind() {

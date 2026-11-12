@@ -39,7 +39,7 @@ export function mockWeather() {
       tempf: 46.4, feelsLike: 46.4, dewPoint: 46.1, humidity: 99,
       windspeedmph: 0, windgustmph: 0, maxdailygust: 11.4, winddir: 315,
       baromrelin: 28.93, baromabsin: 28.81,
-      hourlyrainin: 0.38, dailyrainin: 1.64, eventrainin: 13.03, weeklyrainin: 4.12, monthlyrainin: 11.02, yearlyrainin: 141.6,
+      hourlyrainin: 0.38, dailyrainin: 1.64, eventrainin: 13.03, weeklyrainin: 4.12, monthlyrainin: 11.02,
       lastRain: new Date(now - 4 * 60 * 1000).toISOString(),
       uv: 0, solarradiation: 0,
       tempinf: 64.4, humidityin: 67, feelsLikein: 64.4, dewPointin: 53.2,
