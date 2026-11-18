@@ -20,6 +20,7 @@ const state = {
   rain: null,      // /api/rain-month
   alerts: null,    // /api/alerts
   rainYear: null,  // /api/rain-year (only if the station has no yearly total)
+  normals: null,   // /api/normals (NOAA 1991–2020, Ketchikan airport)
   metric: readPref(),
 };
 
@@ -184,6 +185,11 @@ async function loadAlerts() {
     renderAlerts();
     renderHero(); // the summary mentions wind alerts
   } catch { /* banner just stays hidden */ }
+}
+
+async function loadNormals() {
+  try { state.normals = await getJSON('/api/normals'); renderCalendar(); }
+  catch { /* calendar falls back to fixed thresholds */ }
 }
 
 let yearPolls = 0;
@@ -574,14 +580,45 @@ function renderHumidity() {
     <p class="note">${note}</p>`;
 }
 
-// --- Rainfall calendar ----------------------------------------------------------
-// Ketchikan scale (inches/day): green = normal, yellow = wet, red = unusual.
-function rainBand(v) {
+// --- Rainfall calendar + normals -------------------------------------------------
+//
+// Colours come from NOAA's 1991–2020 daily normals for the date (Ketchikan
+// airport) when they've loaded:
+//   green  = typical: up to what 3 in 4 rainy days on that date get (75th pct)
+//   yellow = wetter than usual
+//   red    = unusual: an amount reached on only ~1 in 20 days for that date
+// Before they load (or if NOAA is down) fixed 1 in / 2 in cutoffs are used.
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+// Amount (in) reached on only `pct`% of all days, interpolated on a log scale
+// between NOAA's "at least X inches" frequencies.
+function amountForPct(norm, pct) {
+  const amts = state.normals.geAmounts, ge = norm.ge;
+  for (let i = 0; i < amts.length - 1; i++) {
+    if (ge[i] != null && ge[i + 1] != null && ge[i] >= pct && ge[i + 1] <= pct) {
+      const f = ge[i] === ge[i + 1] ? 0 : (ge[i] - pct) / (ge[i] - ge[i + 1]);
+      return Math.exp(Math.log(amts[i]) + f * (Math.log(amts[i + 1]) - Math.log(amts[i])));
+    }
+  }
+  return null;
+}
+
+function thresholds(m, d) {
+  const norm = state.normals?.days?.[`${pad2(m)}-${pad2(d)}`];
+  if (norm?.p75 != null) {
+    const unusual = amountForPct(norm, 5);
+    if (unusual) return { wet: norm.p75, unusual, fromNormals: true };
+  }
+  return { wet: 1, unusual: 2, fromNormals: false };
+}
+
+function rainBand(v, t) {
   if (!v) return null;
-  if (v >= 2) return { cls: 'band-high dark', bg: 'rgba(255,122,107,0.9)', word: 'unusually heavy' };
-  if (v >= 1) return { cls: 'band-wet dark', bg: 'rgba(242,210,75,0.85)', word: 'wet day' };
-  const a = 0.25 + 0.5 * v; // deeper green as it approaches 1 in
-  return { cls: `band-normal${a > 0.5 ? ' dark' : ''}`, bg: `rgba(95,207,142,${a.toFixed(2)})`, word: 'normal' };
+  if (v >= t.unusual) return { cls: 'band-high dark', bg: 'rgba(255,122,107,0.9)', word: 'unusual for the date' };
+  if (v >= t.wet) return { cls: 'band-wet dark', bg: 'rgba(242,210,75,0.85)', word: 'wetter than usual' };
+  const a = 0.25 + 0.5 * (v / t.wet); // deeper green as it nears the "wet" line
+  return { cls: `band-normal${a > 0.5 ? ' dark' : ''}`, bg: `rgba(95,207,142,${a.toFixed(2)})`, word: 'typical' };
 }
 
 function renderCalendar() {
@@ -594,27 +631,97 @@ function renderCalendar() {
   const firstDow = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
   const vals = { ...(state.rain?.days || {}) };
   vals[now.d] = c.dailyrainin ?? 0; // today comes from the live reading
-  const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(Date.UTC(y, m - 1, 1));
+  const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', timeZone: 'UTC' }).format(Date.UTC(y, m - 1, 1));
+  const amt = (v) => `${fmt(C.rain(v), u.rainDp)} ${u.rain}`;
+
+  // --- calendar cells ---
   let cells = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => `<span class="cal-head">${d}</span>`).join('');
   for (let i = 0; i < firstDow; i++) cells += '<div class="cal-day empty" aria-hidden="true"></div>';
   for (let d = 1; d <= daysIn; d++) {
-    const v = vals[d];
-    const future = d > now.d;
-    const band = rainBand(v);
+    const v = vals[d], future = d > now.d;
+    const band = rainBand(v, thresholds(m, d));
     const label = future ? '' : v == null ? '—' : v === 0 ? '0' : fmt(C.rain(v), u.rainDp);
-    cells += `<div class="cal-day${d === now.d ? ' today' : ''}${band ? ` ${band.cls}` : ''}"${band ? ` style="background:${band.bg}"` : ''} aria-label="${monthName.split(' ')[0]} ${d}: ${future ? 'future' : `${label} ${u.rain}${band ? `, ${band.word}` : ''}`}">
+    cells += `<div class="cal-day${d === now.d ? ' today' : ''}${band ? ` ${band.cls}` : ''}"${band ? ` style="background:${band.bg}"` : ''} aria-label="${monthName} ${d}: ${future ? 'future' : `${label} ${u.rain}${band ? `, ${band.word}` : ''}`}">
       <span class="d num">${d}</span><span class="v">${label}</span></div>`;
   }
+
+  // --- legend (today's thresholds) ---
+  const tToday = thresholds(m, now.d);
+  const legend = `<div class="cal-legend">
+      <span><span class="chip-sw" style="background:#5FCF8E"></span>Typical, under ${amt(tToday.wet)}</span>
+      <span><span class="chip-sw" style="background:#F2D24B"></span>Wetter than usual</span>
+      <span><span class="chip-sw" style="background:#FF7A6B"></span>Unusual, ${amt(tToday.unusual)}+</span>
+    </div>`;
+
+  // --- #1 pace vs normal, #4 running total chart ---
+  const norms = state.normals?.days;
+  const normTo = (d) => norms?.[`${pad2(m)}-${pad2(d)}`]?.mtd ?? null;
+  const normalNow = normTo(now.d), normalMonth = normTo(daysIn);
+  const actual = c.monthlyrainin ?? Object.values(vals).reduce((s, v) => s + (v || 0), 0);
+  let pace = '', chart = '';
+  if (normalNow != null && normalMonth != null) {
+    const diff = actual - normalNow;
+    const verdict = Math.abs(diff) < 0.1 * normalNow ? 'right about normal'
+      : `${amt(Math.abs(diff))} ${diff > 0 ? 'ahead of' : 'behind'} normal`;
+    const scale = Math.max(normalMonth, actual) * 1.04;
+    pace = `<div class="pace">
+        <p class="pace-text"><strong class="num">${amt(actual)}</strong> so far, ${verdict}.
+          <span class="muted">Normal by ${monthName} ${now.d}: ${amt(normalNow)}. Whole month: ${amt(normalMonth)}.</span></p>
+        <div class="pace-bar" role="img" aria-label="${amt(actual)} this month against ${amt(normalNow)} normal to date and ${amt(normalMonth)} for the whole month">
+          <div class="pace-fill ${diff > 0 ? 'ahead' : ''}" style="width:${((actual / scale) * 100).toFixed(1)}%"></div>
+          <div class="pace-month" style="left:${((normalMonth / scale) * 100).toFixed(1)}%"></div>
+          <div class="pace-now" style="left:${((normalNow / scale) * 100).toFixed(1)}%"></div>
+        </div>
+        <div class="pace-key" aria-hidden="true">
+          <span><i class="fill"></i>This month</span><span><i></i>Normal by today</span><span><i class="month"></i>Normal for the month</span>
+        </div>
+      </div>`;
+    chart = runningChart(vals, now.d, daysIn, normTo, monthName, amt);
+  }
+
+  $('running').innerHTML = chart;
   const filling = state.rain?.pending ? ' Filling in earlier days…' : '';
+  const source = tToday.fromNormals ? ' Colours and normals: NOAA 1991–2020, Ketchikan airport.' : '';
   el.innerHTML = `
-    <div class="row-between">${heading('rainfall', `Rainfall, ${monthName}`)}<span class="num strong teal" style="font-size:18px">${fmt(C.rain(c.monthlyrainin), u.rainDp)} ${u.rain}</span></div>
+    <div class="row-between">${heading('rainfall', `Rainfall, ${monthName} ${y}`)}</div>
+    ${pace}
     <div class="cal">${cells}</div>
-    <div class="cal-legend">
-      <span><span class="chip-sw" style="background:#5FCF8E"></span>Normal, under ${state.metric ? '25 mm' : '1 in'}</span>
-      <span><span class="chip-sw" style="background:#F2D24B"></span>Wet, ${state.metric ? '25–50 mm' : '1–2 in'}</span>
-      <span><span class="chip-sw" style="background:#FF7A6B"></span>Unusually heavy, ${state.metric ? '50 mm' : '2 in'}+</span>
-    </div>
-    <p class="muted small">Rain per day. Today is outlined.${filling}</p>`;
+    ${legend}
+    <p class="muted small">Today is outlined.${source}${filling}</p>`;
+}
+
+// Running total this month vs the normal running total.
+function runningChart(vals, today, daysIn, normTo, monthName, amt) {
+  // Draw at a width close to the displayed one so labels stay readable on phones
+  const shown = $('running').clientWidth || 600;
+  const W = Math.round(Math.min(1000, Math.max(520, shown * 1.5))), H = 230, L = 8, R = 8, T = 22, B = 30;
+  const act = []; let sum = 0;
+  for (let d = 1; d <= today; d++) { sum += vals[d] || 0; act.push(sum); }
+  const norm = Array.from({ length: daysIn }, (_, i) => normTo(i + 1) ?? 0);
+  const top = Math.max(norm[daysIn - 1], sum) * 1.12 || 1;
+  const x = (d) => L + ((d - 1) / (daysIn - 1)) * (W - L - R);
+  const yv = (v) => T + (1 - v / top) * (H - T - B);
+  const path = (arr) => arr.map((v, i) => `${i ? 'L' : 'M'}${x(i + 1).toFixed(1)} ${yv(v).toFixed(1)}`).join('');
+  const area = `${path(act)}L${x(today).toFixed(1)} ${yv(0).toFixed(1)}L${x(1).toFixed(1)} ${yv(0).toFixed(1)}Z`;
+  const ticks = [1, 8, 15, 22, daysIn].map((d, i, a) => `<text x="${x(d).toFixed(0)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === a.length - 1 ? 'end' : 'middle'}" fill="#B2C3CA" font-size="22">${d}</text>`).join('');
+  const ax = x(today), ay = yv(sum);
+  return `<figure class="running">
+      <div class="row-between"><p class="strong">Rain this month vs normal</p></div>
+      <figcaption class="running-key">
+        <span><span class="key-line act" aria-hidden="true"></span>This ${monthName}</span>
+        <span><span class="key-line norm" aria-hidden="true"></span>Normal</span>
+      </figcaption>
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Running rain total for ${monthName}: ${amt(sum)} by day ${today}, against a normal of ${amt(norm[today - 1])}.">
+        <line x1="${L}" x2="${W - R}" y1="${yv(0).toFixed(1)}" y2="${yv(0).toFixed(1)}" stroke="#2B3C45"/>
+        <path d="${area}" fill="#86DCEB" opacity="0.14"/>
+        <path d="${path(norm)}" fill="none" stroke="#D4E0E5" stroke-width="3" stroke-dasharray="8 8"/>
+        <path d="${path(act)}" fill="none" stroke="#86DCEB" stroke-width="4" stroke-linejoin="round"/>
+        <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="7" fill="#86DCEB" stroke="#152229" stroke-width="3"/>
+        <text x="${(W - R).toFixed(0)}" y="${(yv(norm[daysIn - 1]) - 10).toFixed(1)}" text-anchor="end" fill="#D4E0E5" font-size="22">${amt(norm[daysIn - 1])}</text>
+        <text x="${Math.min(ax + 12, W - 130).toFixed(1)}" y="${(ay - 12).toFixed(1)}" fill="#F1F6F8" font-size="24" font-weight="700">${amt(sum)}</text>
+        ${ticks}
+      </svg>
+    </figure>`;
 }
 
 // --- Wind rose (last 24 h) ------------------------------------------------------
@@ -1121,6 +1228,7 @@ window.addEventListener('DOMContentLoaded', () => {
   loadWeather();
   loadTides();
   setTimeout(loadRainMonth, 2500); // after the first weather call, to spare Ambient's rate limit
+  loadNormals();
   // Yearly rain fallback: only needed when the station has no yearly total.
   setTimeout(() => { if (state.data && state.data.current.yearlyrainin == null) loadRainYear(); }, 8000);
 });
@@ -1130,3 +1238,7 @@ setInterval(loadAlerts, 3 * 60_000);
 setInterval(() => { state.forecast = null; loadForecast(); }, 30 * 60_000);
 setInterval(renderUpdated, 20_000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadWeather(); });
+
+// Re-fit the running-total chart when the window size changes
+let calResize;
+window.addEventListener('resize', () => { clearTimeout(calResize); calResize = setTimeout(renderCalendar, 200); });

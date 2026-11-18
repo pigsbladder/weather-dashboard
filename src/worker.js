@@ -6,6 +6,7 @@
 //   2. /api/weather    (src/weather.js) - Ambient Weather proxy
 //      /api/tides, /api/forecast, /api/rain-month (src/extras.js)
 //      /api/alerts (src/alerts.js)
+//      /api/normals (src/normals.js)
 //   3. Everything else -> static files in /public
 // ---------------------------------------------------------------------------
 
@@ -13,6 +14,7 @@ import { gate } from './auth.js';
 import { handleWeather } from './weather.js';
 import { handleTides, handleForecast, handleRainMonth, handleRainYear } from './extras.js';
 import { handleAlerts } from './alerts.js';
+import { handleNormals } from './normals.js';
 import { mockAlerts } from './mock.js';
 
 export default {
@@ -27,6 +29,7 @@ export default {
       if (pathname === '/api/forecast') return handleForecast(request, env, ctx);
       if (pathname === '/api/rain-month') return handleRainMonth(request, env, ctx);
       if (pathname === '/api/rain-year') return handleRainYear(request, env, ctx);
+      if (pathname === '/api/normals') return handleNormals(request, env, ctx);
       if (pathname === '/api/alerts') {
         if (env.AW_MOCK === '1') return Response.json(mockAlerts());
         return handleAlerts(request, env, ctx);
