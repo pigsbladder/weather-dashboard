@@ -633,6 +633,8 @@ function renderCalendar() {
   vals[now.d] = c.dailyrainin ?? 0; // today comes from the live reading
   const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', timeZone: 'UTC' }).format(Date.UTC(y, m - 1, 1));
   const amt = (v) => `${fmt(C.rain(v), u.rainDp)} ${u.rain}`;
+  // Full words for the pace sentence ("11.02 inches so far" reads better than "11.02 in so far")
+  const words = (v) => `${fmt(C.rain(v), u.rainDp)} ${state.metric ? 'mm' : 'inches'}`;
 
   // --- calendar cells ---
   let cells = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => `<span class="cal-head">${d}</span>`).join('');
@@ -662,11 +664,11 @@ function renderCalendar() {
   if (normalNow != null && normalMonth != null) {
     const diff = actual - normalNow;
     const verdict = Math.abs(diff) < 0.1 * normalNow ? 'right about normal'
-      : `${amt(Math.abs(diff))} ${diff > 0 ? 'ahead of' : 'behind'} normal`;
+      : `${words(Math.abs(diff))} ${diff > 0 ? 'ahead of' : 'behind'} normal`;
     const scale = Math.max(normalMonth, actual) * 1.04;
     pace = `<div class="pace">
-        <p class="pace-text"><strong class="num">${amt(actual)}</strong> so far, ${verdict}.
-          <span class="muted">Normal by ${monthName} ${now.d}: ${amt(normalNow)}. Whole month: ${amt(normalMonth)}.</span></p>
+        <p class="pace-text"><strong class="num">${words(actual)}</strong> so far, ${verdict}.
+          <span class="muted">Normal by ${monthName} ${now.d}: ${words(normalNow)}. Whole month: ${words(normalMonth)}.</span></p>
         <div class="pace-bar" role="img" aria-label="${amt(actual)} this month against ${amt(normalNow)} normal to date and ${amt(normalMonth)} for the whole month">
           <div class="pace-fill ${diff > 0 ? 'ahead' : ''}" style="width:${((actual / scale) * 100).toFixed(1)}%"></div>
           <div class="pace-month" style="left:${((normalMonth / scale) * 100).toFixed(1)}%"></div>
