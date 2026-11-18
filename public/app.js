@@ -574,7 +574,15 @@ function renderHumidity() {
     <p class="note">${note}</p>`;
 }
 
-// --- Rainfall calendar --------------------------------------------------------
+// --- Rainfall calendar ----------------------------------------------------------
+// Ketchikan scale (inches/day): green = normal, yellow = wet, red = unusual.
+function rainBand(v) {
+  if (!v) return null;
+  if (v >= 2) return { cls: 'band-high dark', bg: 'rgba(255,122,107,0.9)', word: 'unusually heavy' };
+  if (v >= 1) return { cls: 'band-wet dark', bg: 'rgba(242,210,75,0.85)', word: 'wet day' };
+  const a = 0.25 + 0.5 * v; // deeper green as it approaches 1 in
+  return { cls: `band-normal${a > 0.5 ? ' dark' : ''}`, bg: `rgba(95,207,142,${a.toFixed(2)})`, word: 'normal' };
+}
 
 function renderCalendar() {
   const el = $('tileCalendar');
@@ -587,25 +595,26 @@ function renderCalendar() {
   const vals = { ...(state.rain?.days || {}) };
   vals[now.d] = c.dailyrainin ?? 0; // today comes from the live reading
   const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(Date.UTC(y, m - 1, 1));
-  const max = Math.max(1, ...Object.values(vals).filter((v) => v != null));
-
   let cells = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => `<span class="cal-head">${d}</span>`).join('');
   for (let i = 0; i < firstDow; i++) cells += '<div class="cal-day empty" aria-hidden="true"></div>';
   for (let d = 1; d <= daysIn; d++) {
     const v = vals[d];
     const future = d > now.d;
-    const a = v ? Math.min(0.9, 0.18 + (v / max) * 0.72) : 0;
-    const dark = a > 0.5;
-    const style = v ? ` style="background:rgba(134,220,235,${a.toFixed(2)})"` : '';
+    const band = rainBand(v);
     const label = future ? '' : v == null ? '—' : v === 0 ? '0' : fmt(C.rain(v), u.rainDp);
-    cells += `<div class="cal-day${d === now.d ? ' today' : ''}${dark ? ' dark' : ''}"${style} aria-label="${monthName.split(' ')[0]} ${d}: ${future ? 'future' : `${label} ${u.rain}`}">
+    cells += `<div class="cal-day${d === now.d ? ' today' : ''}${band ? ` ${band.cls}` : ''}"${band ? ` style="background:${band.bg}"` : ''} aria-label="${monthName.split(' ')[0]} ${d}: ${future ? 'future' : `${label} ${u.rain}${band ? `, ${band.word}` : ''}`}">
       <span class="d num">${d}</span><span class="v">${label}</span></div>`;
   }
   const filling = state.rain?.pending ? ' Filling in earlier days…' : '';
   el.innerHTML = `
     <div class="row-between">${heading('rainfall', `Rainfall, ${monthName}`)}<span class="num strong teal" style="font-size:18px">${fmt(C.rain(c.monthlyrainin), u.rainDp)} ${u.rain}</span></div>
     <div class="cal">${cells}</div>
-    <p class="muted small">Per day, in ${u.rain === 'in' ? 'inches' : 'millimetres'}. Darker cells had more rain. Today is outlined.${filling}</p>`;
+    <div class="cal-legend">
+      <span><span class="chip-sw" style="background:#5FCF8E"></span>Normal, under ${state.metric ? '25 mm' : '1 in'}</span>
+      <span><span class="chip-sw" style="background:#F2D24B"></span>Wet, ${state.metric ? '25–50 mm' : '1–2 in'}</span>
+      <span><span class="chip-sw" style="background:#FF7A6B"></span>Unusually heavy, ${state.metric ? '50 mm' : '2 in'}+</span>
+    </div>
+    <p class="muted small">Rain per day. Today is outlined.${filling}</p>`;
 }
 
 // --- Wind rose (last 24 h) ------------------------------------------------------

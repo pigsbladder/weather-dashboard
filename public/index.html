@@ -48,7 +48,7 @@
   <section class="alerts" id="alerts" aria-label="Weather alerts" hidden></section>
 
   <!-- ===== Current conditions + radar ===== -->
-  <section class="hero" aria-label="Current conditions and radar">
+  <section class="hero" aria-label="Current conditions and this month’s rain">
     <div class="panel now">
       <div class="now-pair">
         <div class="now-block">
@@ -65,38 +65,8 @@
       <dl class="stats" id="heroStats"></dl>
     </div>
 
-    <figure class="panel radar">
-      <div id="map" class="map" role="region" aria-label="Radar and satellite map"></div>
-      <div class="pill-group map-layers" role="group" aria-label="Map layers">
-        <button type="button" data-layer="radar" aria-pressed="true">Radar</button>
-        <button type="button" data-layer="clouds" aria-pressed="true">Clouds</button>
-      </div>
-      <figcaption class="radar-ui">
-        <div class="radar-player">
-          <button type="button" class="play" id="radarPlay" aria-label="Play the last hour of radar">
-            <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><path id="playIcon" d="M1 1l12 7-12 7z" fill="currentColor"/></svg>
-          </button>
-          <div class="radar-scrub">
-            <input type="range" id="radarFrame" min="0" max="0" value="0" aria-label="Radar time">
-            <div class="radar-times num"><span id="radarStart"></span><span id="radarNow" class="strong"></span></div>
-          </div>
-        </div>
-        <div class="radar-foot">
-          <div class="legend-row">
-            <div class="legend" id="legendRadar">
-              <span>Light</span>
-              <span class="legend-bar" aria-hidden="true"></span>
-              <span>Heavy rain</span>
-            </div>
-            <div class="legend" id="legendClouds">
-              <span class="cloud-bar" aria-hidden="true"></span>
-              <span>Clouds, thin to thick<span id="cloudTime" class="num"></span></span>
-            </div>
-          </div>
-          <span class="attrib">Radar <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>. Clouds <a href="https://earthdata.nasa.gov/gibs" target="_blank" rel="noopener">NASA</a></span>
-        </div>
-      </figcaption>
-    </figure>
+    <!-- Rainfall calendar sits beside current conditions -->
+    <article class="panel cal-panel" id="tileCalendar"></article>
   </section>
 
   <!-- ===== Indoors / sun and moon / UV ===== -->
@@ -141,7 +111,38 @@
     <article class="tile" id="tileWind"></article>
     <article class="tile" id="tilePressure"></article>
     <article class="tile" id="tileHumidity"></article>
-    <article class="tile span2" id="tileCalendar"></article>
+    <figure class="tile span2 radar">
+      <div id="map" class="map" role="region" aria-label="Radar and satellite map"></div>
+      <div class="pill-group map-layers" role="group" aria-label="Map layers">
+        <button type="button" data-layer="radar" aria-pressed="true">Radar</button>
+        <button type="button" data-layer="clouds" aria-pressed="true">Clouds</button>
+      </div>
+      <figcaption class="radar-ui">
+        <div class="radar-player">
+          <button type="button" class="play" id="radarPlay" aria-label="Play the last hour of radar">
+            <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><path id="playIcon" d="M1 1l12 7-12 7z" fill="currentColor"/></svg>
+          </button>
+          <div class="radar-scrub">
+            <input type="range" id="radarFrame" min="0" max="0" value="0" aria-label="Radar time">
+            <div class="radar-times num"><span id="radarStart"></span><span id="radarNow" class="strong"></span></div>
+          </div>
+        </div>
+        <div class="radar-foot">
+          <div class="legend-row">
+            <div class="legend" id="legendRadar">
+              <span>Light</span>
+              <span class="legend-bar" aria-hidden="true"></span>
+              <span>Heavy rain</span>
+            </div>
+            <div class="legend" id="legendClouds">
+              <span class="cloud-bar" aria-hidden="true"></span>
+              <span>Clouds, thin to thick<span id="cloudTime" class="num"></span></span>
+            </div>
+          </div>
+          <span class="attrib">Radar <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>. Clouds <a href="https://earthdata.nasa.gov/gibs" target="_blank" rel="noopener">NASA</a></span>
+        </div>
+      </figcaption>
+    </figure>
     <article class="tile" id="tileRose"></article>
     <article class="tile" id="tileDegree"></article>
 
